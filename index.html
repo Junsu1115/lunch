@@ -400,7 +400,15 @@ function focusPlace(id){
     map.panTo(markers[id].getPosition());
   }
 }
+function closePlace(){
+  pickedId = null; selected = null;
+  if(info){ info.setMap(null); info = null; }
+  document.querySelectorAll(".pin.sel").forEach(e => e.classList.remove("sel"));
+  render();
+}
 function openPlace(id, byDice){
+  // 이미 열려 있는 가게를 다시 누르면 접기
+  if(!byDice && pickedId === id){ closePlace(); return; }
   if(pickedId !== id) pickTab = "menu";
   pickedId = id; pickByDice = byDice;
   render(); focusPlace(id);
@@ -414,7 +422,14 @@ $("#homeBtn").addEventListener("click", () => {
   if(info) info.setMap(null);
   map.setLevel(3); map.panTo(new kakao.maps.LatLng(COMPANY.lat, COMPANY.lng));
 });
-$("#tabs").addEventListener("click", e => { const b = e.target.closest(".tab"); if(b){ group = b.dataset.g; render(); } });
+$("#tabs").addEventListener("click", e => {
+  const b = e.target.closest(".tab"); if(!b) return;
+  group = b.dataset.g;
+  // 종류 탭을 바꾸면 열려 있던 가게 정보는 닫고 그 종류 목록만 보여줌
+  pickedId = null; selected = null;
+  if(info){ info.setMap(null); info = null; }
+  render(); $("#list").scrollTop = 0;
+});
 $("#list").addEventListener("click", e => {
   const pt = e.target.closest(".ptab");
   if(pt){
@@ -431,7 +446,7 @@ $("#list").addEventListener("click", e => {
   if(pk){
     const p = places.find(x => x.id === pickedId);
     if(pk === "again") $("#pick").click();
-    else if(pk === "close"){ pickedId = null; render(); }
+    else if(pk === "close") closePlace();
     else if(pk === "share" && p) shareToChat(p);
     return;
   }
