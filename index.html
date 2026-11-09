@@ -76,7 +76,8 @@
   .chat-head button{margin-left:auto;background:transparent;border:0;color:#fff;font-size:20px;cursor:pointer;line-height:1}
   .chat-msgs{flex:1;overflow:auto;padding:12px;background:#f6f4ef;display:flex;flex-direction:column;gap:8px}
   .msg{max-width:80%;display:flex;flex-direction:column;gap:2px}
-  .msg .who{font-size:11px;color:var(--muted);padding:0 4px}
+  .msg .who{font-size:12px;font-weight:700;color:#5c554b;padding:0 4px}
+  .msg.me .who{color:var(--accent)}
   .msg .bubble{background:#fff;border-radius:14px 14px 14px 4px;padding:8px 11px;font-size:14px;line-height:1.45;word-break:break-word;box-shadow:0 1px 2px #0001}
   .msg .time{font-size:10px;color:#a8a097;padding:0 4px}
   .msg.me{align-self:flex-end;align-items:flex-end}
@@ -600,7 +601,7 @@ function renderMsg(m){
   div.className = "msg" + (me ? " me" : "");
   let body = esc(clean(m.text));
   if(m.place) body += `<span class="share" data-place="${esc(m.place)}">지도에서 보기 →</span>`;
-  div.innerHTML = `${me ? "" : `<div class="who">${esc(clean(m.nick))}</div>`}<div class="bubble">${body}</div><div class="time">${chatTime(m.ts)}</div>`;
+  div.innerHTML = `<div class="who">${esc(clean(m.nick))}${me ? " (나)" : ""}</div><div class="bubble">${body}</div><div class="time">${chatTime(m.ts)}</div>`;
   return div;
 }
 function sendChat(text, place){
