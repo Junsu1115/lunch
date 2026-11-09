@@ -109,6 +109,9 @@
   .emoji-pop.on{display:grid}
   .emoji-pop button{border:0;background:transparent;font-size:22px;cursor:pointer;border-radius:8px;padding:4px 0}
   .emoji-pop button:hover{background:#f1ede6}
+  .room .del{border:0;background:#fff0f0;color:#e03131;border-radius:8px;font-size:12px;font-weight:700;padding:5px 8px;cursor:pointer;flex:none}
+  .admin-bar{display:flex;align-items:center;gap:6px;padding:7px 12px;background:#fff0f0;color:#c92a2a;font-size:12px;font-weight:700;border-bottom:1px solid #ffd8d8}
+  .admin-bar button{margin-left:auto;border:0;background:transparent;color:#c92a2a;text-decoration:underline;cursor:pointer;font:inherit;font-size:12px}
   .rooms-note{font-size:11px;color:#a8a097;text-align:center;padding:10px}
 
   @media (max-width: 760px){
@@ -169,6 +172,7 @@
 <!-- Firebase (채팅용) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 
 <script>
 /* ═════════════ 설정 ═════════════ */
@@ -455,6 +459,10 @@ $("#refresh").addEventListener("click", () => loadPlaces(true));
    lunchchat/msgs/{방}/{메시지} : {uid, nick, text, ts, place}
    마지막 대화(lastAt)로부터 하루가 지난 방은 누가 사이트를 열 때 자동 삭제돼요. */
 const DAY = 24 * 3600 * 1000;
+// 관리자: 이름 칸에 관리자 비밀번호를 입력하면 이 계정으로 로그인 (비밀번호는 코드에 없음, Firebase가 확인)
+const ADMIN_EMAIL = "admin@lunch-chat-655ae.firebaseapp.com";
+const ADMIN_UID = "bpvZRWF6STZ8w4KmuBP5MTR6kO63";
+let isAdmin = false;
 
 /* ── 욕설 가리기: 보낼 때와 보여줄 때 모두 *** 로 바꿈 ── */
 const BAD_WORDS = ["씨발","시발","씨바","시바","씨빨","씨팔","시팔","쉬발","쓰발","ㅅㅂ","ㅆㅂ","ㅅ ㅂ","병신","븅신","빙신","ㅂㅅ","개새끼","개새기","개색기","개색끼","개쌔끼","새끼","새기야","지랄","ㅈㄹ","좆","존나","졸라","ㅈㄴ","엿먹","미친놈","미친년","미친새","또라이","꺼져","닥쳐","닥치","염병","썅","니미","느금","니애미","애미","애비","창녀","호로","fuck","shit","bitch","asshole","dick"];
@@ -493,6 +501,10 @@ function initFirebase(){
   }catch(e){ return false; }
   fbReady = true;
   db.ref(".info/serverTimeOffset").on("value", s => { serverOffset = s.val() || 0; });
+  if(firebase.auth) firebase.auth().onAuthStateChanged(u => {
+    isAdmin = !!u && u.uid === ADMIN_UID;
+    if(view === "rooms") showRooms(); else if(view === "room" && currentRoom) openRoom(currentRoom);
+  });
   const roomsRef = db.ref("lunchchat/rooms");
   const onRoom = s => { rooms[s.key] = s.val(); cleanupIfStale(s.key); refreshRooms(); };
   roomsRef.on("child_added", onRoom);
@@ -532,9 +544,18 @@ function askNick(){
   view = "nick"; showOnly("nick");
   head(`<b>🍚 점심 팀</b><button class="x" data-c="close" aria-label="닫기">×</button>`);
   $("#chatMsgs").innerHTML = `<div class="chat-empty">채팅에서 쓸 이름을 정해주세요<br><br>
-    <input id="nickIn" maxlength="12" placeholder="예: 디자인팀 준" value="${esc(myNick)}" style="font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:10px;width:200px"><br><br>
+    <input id="nickIn" maxlength="20" placeholder="예: 디자인팀 준" value="${esc(myNick)}" style="font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:10px;width:200px"><br><br>
     <button class="btn accent" id="nickOk">확인</button></div>`;
-  const ok = () => { const v = clean($("#nickIn").value.trim()); if(!v) return; myNick = v; store.set(NICK_KEY, v); showRooms(); };
+  const ok = () => {
+    const raw = $("#nickIn").value.trim(); if(!raw) return;
+    if(/^\d{6,}$/.test(raw)){   // 숫자만 6자리 이상 → 관리자 비밀번호로 시도
+      firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL, raw)
+        .then(() => { isAdmin = true; if(!myNick){ myNick = "관리자"; store.set(NICK_KEY, myNick); } toast("관리자 모드로 들어왔어요"); showRooms(); })
+        .catch(() => toast("관리자 비밀번호가 맞지 않아요"));
+      return;
+    }
+    const v = clean(raw); myNick = v; store.set(NICK_KEY, v); showRooms();
+  };
   $("#nickOk").onclick = ok;
   $("#nickIn").onkeydown = e => { if(e.key === "Enter") ok(); };
   setTimeout(() => $("#nickIn")?.focus(), 50);
@@ -557,9 +578,11 @@ function refreshRooms(){
     const nm = clean(r.name);
     return `<div class="room" data-room="${esc(id)}"><div class="av">${esc([...nm][0] || "팀")}</div>
       <div class="rb"><div class="rn">${esc(nm)}</div><div class="rl">${last}</div></div>
-      ${isNew ? '<span class="dot"></span>' : ""}<div class="rt">${ago(r.lastAt)}</div></div>`;
+      ${isNew ? '<span class="dot"></span>' : ""}<div class="rt">${ago(r.lastAt)}</div>
+      ${isAdmin ? `<button class="del" data-del="${esc(id)}">삭제</button>` : ""}</div>`;
   }).join("");
-  $("#roomsView").innerHTML = form + (items
+  const adminBar = isAdmin ? `<div class="admin-bar">🔧 관리자 모드 · 팀을 삭제할 수 있어요<button data-c="logout">나가기</button></div>` : "";
+  $("#roomsView").innerHTML = adminBar + form + (items
     ? items + `<div class="rooms-note">하루 동안 대화가 없는 팀은 자동으로 사라져요</div>`
     : (creating ? "" : `<div class="rooms-empty">아직 만들어진 팀이 없어요<br><br><button class="btn accent" data-c="new">+ 팀 만들기</button></div>`));
   if(creating){
@@ -575,11 +598,21 @@ function createRoom(name){
     .then(() => { creating = false; openRoom(ref.key); })
     .catch(err => toast("팀을 만들지 못했어요: " + err.message, 4000));
 }
+function deleteRoom(id){
+  const r = rooms[id]; if(!r || !isAdmin) return;
+  if(!confirm(`'${clean(r.name)}' 팀을 삭제할까요?\n대화 내용도 모두 지워지고 되돌릴 수 없어요.`)) return;
+  db.ref("lunchchat/msgs/" + id).remove()
+    .then(() => db.ref("lunchchat/rooms/" + id).remove())
+    .then(() => { toast("팀을 삭제했어요"); if(currentRoom === id) showRooms(); })
+    .catch(err => toast("삭제 실패: " + err.message, 4000));
+}
 function openRoom(id){
   const r = rooms[id]; if(!r && !id) return;
   if(msgQuery){ msgQuery.off(); msgQuery = null; }
   view = "room"; currentRoom = id; showOnly("room");
-  head(`<button class="back" data-c="back" aria-label="팀 목록">‹</button><b>${esc(clean((rooms[id] || {}).name || "팀"))}</b><button class="x" data-c="close" aria-label="닫기" style="margin-left:auto">×</button>`);
+  head(`<button class="back" data-c="back" aria-label="팀 목록">‹</button><b>${esc(clean((rooms[id] || {}).name || "팀"))}</b>
+    ${isAdmin ? `<button data-c="delroom" style="margin-left:auto;font-size:13px;background:#e03131;border-radius:8px;padding:4px 9px">삭제</button>` : ""}
+    <button class="x" data-c="close" aria-label="닫기" style="margin-left:${isAdmin ? "6px" : "auto"}">×</button>`);
   $("#chatMsgs").innerHTML = `<div class="chat-empty" id="chatEmpty">첫 메시지를 남겨보세요 😋<br>"오늘 점심 뭐 드실래요?"</div>`;
   msgQuery = db.ref("lunchchat/msgs/" + id).orderByChild("ts").limitToLast(100);
   msgQuery.on("child_added", snap => {
@@ -639,11 +672,14 @@ $("#chatHead").addEventListener("click", e => {
   else if(c === "back") showRooms();
   else if(c === "new"){ creating = true; refreshRooms(); }
   else if(c === "nick") askNick();
+  else if(c === "delroom" && currentRoom) deleteRoom(currentRoom);
 });
 $("#roomsView").addEventListener("click", e => {
   const c = e.target.closest("[data-c]")?.dataset.c;
   if(c === "new"){ creating = true; refreshRooms(); return; }
   if(c === "cancel"){ creating = false; refreshRooms(); return; }
+  if(c === "logout"){ firebase.auth().signOut().then(() => { isAdmin = false; toast("관리자 모드를 나왔어요"); showRooms(); }); return; }
+  const del = e.target.closest("[data-del]"); if(del){ deleteRoom(del.dataset.del); return; }
   const r = e.target.closest(".room"); if(r) openRoom(r.dataset.room);
 });
 $("#chatForm").addEventListener("submit", e => { e.preventDefault(); sendChat($("#chatInput").value); $("#chatInput").value = ""; $("#emojiPop").classList.remove("on"); });
