@@ -223,7 +223,7 @@
         </select>
         <input type="text" id="q" placeholder="이름·종류 검색" style="flex:1;min-width:90px">
         <label class="ck"><input type="checkbox" id="showHidden">숨긴 곳</label>
-        <label class="ck" title="회사 사람들이 '식대 안에 됐어요'라고 표시한 곳만"><input type="checkbox" id="okOnly">💰 식대 안쪽만</label>
+        <label class="ck" title="회사 사람들이 '식대 안에 됐어요'라고 표시한 곳만"><input type="checkbox" id="okOnly"><span id="okLabel">💰 11,000원 이하만</span></label>
       </div>
       <div class="ctrl">
         <button class="btn accent" id="pick">🎲 이 중에서 뽑기</button>
@@ -512,13 +512,16 @@ function renderTabs(){
 function render(){
   $("#sub").textContent = `${COMPANY.address} 반경 ${RADIUS}m${updatedAt ? " · " + updatedAt + " 기준" : ""}`;
   const ceCount = Object.keys(closedEarly).length;
+  $("#okLabel").textContent = `💰 ${MEALS[meal].budget.toLocaleString()}원 이하만`;
   $("#budget").textContent = `${MEALS[meal].icon} ${MEALS[meal].name} 식대 ${MEALS[meal].budget.toLocaleString()}원` + (meal === "dinner" && ceCount ? ` · 7시 전 마감 ${ceCount}곳 제외` : "");
   renderTabs();
   const arr = visible();
   $("#count").textContent = places.length ? `${arr.length}곳 표시 중` : "";
   const old = $("#pickbox"), keep = old && old.dataset.id === pickedId ? old : null;
   $("#list").innerHTML = gatherSection() + pickPanel() + (arr.length ? arr.map(card).join("")
-    : places.length ? `<div class="empty">조건에 맞는 식당이 없어요.</div>`
+    : places.length ? ($("#okOnly").checked
+        ? `<div class="empty">아직 <b>${MEALS[meal].budget.toLocaleString()}원 이하</b>로 표시된 가게가 없어요.<br>가게를 누르고 <b>💰 ${MEALS[meal].budget.toLocaleString()}원 안에 됐어요</b>를 눌러주세요.<br><small>회사 사람들이 표시할수록 이 목록이 채워져요</small></div>`
+        : `<div class="empty">조건에 맞는 식당이 없어요.</div>`)
     : `<div class="empty">식당을 불러오는 중이에요…</div>`);
   if(keep && $("#pickbox")){   // 같은 가게면 카카오맵 화면을 다시 로딩하지 않음
     const fresh = $("#pickbox");
