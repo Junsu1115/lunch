@@ -54,7 +54,7 @@
   .iwbox b{font-size:14px}
   .home-btn{position:absolute;left:12px;top:12px;z-index:10;box-shadow:0 2px 6px #0003}
   .pickbox{background:#fff;border:2px solid var(--accent);border-radius:14px;margin-bottom:10px;overflow:hidden}
-  .pickhead{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#fff4ee}
+  .pickhead{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#fff4ee;cursor:pointer}
   .pickhead .t{font-size:12px;color:var(--accent);font-weight:700}
   .pickhead .n{font-size:16px;font-weight:800}
   .ptabs{display:flex;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
@@ -478,7 +478,7 @@ function pickPanel(){
   const p = places.find(x => x.id === pickedId);
   if(!p) return "";
   return `<div class="pickbox" id="pickbox">
-    <div class="pickhead"><div style="flex:1"><div class="t">${pickByDice ? "🎲 오늘의 " + MEALS[meal].name : "📍 선택한 가게"}</div>
+    <div class="pickhead"><div style="flex:1"><div class="t">${pickByDice ? "🎲 오늘의 " + MEALS[meal].name : "📍 선택한 가게"} <span style="font-weight:500;opacity:.7">· 누르면 접혀요 ▲</span></div>
       <div class="n"><span class="gtag" style="background:${GROUPS[p.group] || "#868e96"}">${esc(p.group)}</span>${esc(p.name)}</div>
       <div class="meta">${esc(p.category)} · 도보 ${walkMin(p.distance)}분 · ${p.distance}m</div>
       ${pickActions(p)}</div></div>
@@ -632,6 +632,8 @@ $("#list").addEventListener("click", e => {
     const a = document.querySelector(".pickfoot a.k"); if(a) a.href = pickSrc(p);
     return;
   }
+  // 맨 위 '선택한 가게' 제목 부분을 한 번 더 누르면 접기 (버튼·입력칸 누른 건 제외)
+  if(e.target.closest(".pickhead") && !e.target.closest("button, select, input, a")){ closePlace(); return; }
   const pk = e.target.dataset.pick;
   if(pk){
     const p = places.find(x => x.id === pickedId);
