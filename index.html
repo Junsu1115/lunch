@@ -88,6 +88,22 @@
   .chat-form input{flex:1;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:20px;padding:9px 14px}
   .chat-form button{border:0;border-radius:20px;background:var(--accent);color:#fff;font:inherit;font-size:14px;padding:0 16px;cursor:pointer}
   .chat-setup{padding:24px 18px;font-size:13px;line-height:1.7;color:#4a443c}
+  .chat-head .back{margin-left:0;font-size:22px;padding:0 4px 0 0}
+  .chat-head .plus{margin-left:auto;width:30px;height:30px;border-radius:50%;background:var(--accent);font-size:20px;display:flex;align-items:center;justify-content:center;padding:0}
+  .chat-head .plus + button{margin-left:6px}
+  .rooms{flex:1;overflow:auto;background:#fff}
+  .room{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #f1ede6;cursor:pointer}
+  .room:hover{background:#faf8f4}
+  .room .av{width:40px;height:40px;border-radius:12px;background:#fff0e8;color:var(--accent);font-weight:800;display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
+  .room .rb{flex:1;min-width:0}
+  .room .rn{font-weight:700;font-size:14px}
+  .room .rl{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .room .rt{font-size:11px;color:#a8a097;white-space:nowrap;align-self:flex-start;margin-top:2px}
+  .room .dot{width:8px;height:8px;border-radius:50%;background:#e03131;flex:none}
+  .newroom{display:flex;gap:6px;padding:10px 12px;background:#fff4ee;border-bottom:1px solid var(--line)}
+  .newroom input{flex:1;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+  .rooms-empty{text-align:center;color:var(--muted);font-size:13px;line-height:1.8;padding:60px 20px}
+  .rooms-note{font-size:11px;color:#a8a097;text-align:center;padding:10px}
 
   @media (max-width: 760px){
     .app{flex-direction:column;height:auto;min-height:100vh}
@@ -131,10 +147,11 @@
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-5A8.4 8.4 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z"/></svg>
   <span class="chat-badge" id="chatBadge">0</span>
 </button>
-<div class="chat-panel" id="chatPanel" role="dialog" aria-label="점심 단체 채팅">
-  <div class="chat-head"><b>🍚 점심 단체방</b><small id="chatMe"></small><button id="chatClose" aria-label="닫기">×</button></div>
-  <div class="chat-msgs" id="chatMsgs"></div>
-  <form class="chat-form" id="chatForm" autocomplete="off">
+<div class="chat-panel" id="chatPanel" role="dialog" aria-label="점심 팀 채팅">
+  <div class="chat-head" id="chatHead"></div>
+  <div class="rooms" id="roomsView"></div>
+  <div class="chat-msgs" id="chatMsgs" style="display:none"></div>
+  <form class="chat-form" id="chatForm" autocomplete="off" style="display:none">
     <input id="chatInput" maxlength="300" placeholder="메시지 입력">
     <button type="submit">보내기</button>
   </form>
@@ -425,25 +442,142 @@ $("#pick").addEventListener("click", () => {
 });
 $("#refresh").addEventListener("click", () => loadPlaces(true));
 
-/* ═════════════ 단체 채팅 (Firebase Realtime Database) ═════════════ */
-let chatRef = null, chatOpen = false, unread = 0, myNick = store.get(NICK_KEY, ""), chatReady = false;
+/* ═════════════ 팀 채팅 (Firebase Realtime Database) ═════════════
+   lunchchat/rooms/{방}  : {name, createdAt, createdBy, lastAt, lastText, lastNick, lastUid}
+   lunchchat/msgs/{방}/{메시지} : {uid, nick, text, ts, place}
+   마지막 대화(lastAt)로부터 하루가 지난 방은 누가 사이트를 열 때 자동 삭제돼요. */
+const DAY = 24 * 3600 * 1000;
+let db = null, fbReady = false, serverOffset = 0;
+let rooms = {}, view = "rooms", currentRoom = null, msgQuery = null, creating = false, pendingShare = null;
+let chatOpen = false, unread = 0, myNick = store.get(NICK_KEY, "");
+const seenAt = store.get("lunch.seen", {});   // 방별로 마지막으로 읽은 시각
 const myId = store.get("lunch.uid", null) || (() => { const id = Math.random().toString(36).slice(2, 10); store.set("lunch.uid", id); return id; })();
+const nowMs = () => Date.now() + serverOffset;
 
+function ago(ts){
+  if(!ts) return "";
+  const s = Math.max(0, (nowMs() - ts) / 1000);
+  if(s < 60) return "방금 전";
+  if(s < 3600) return `${Math.floor(s / 60)}분 전`;
+  if(s < 86400) return `${Math.floor(s / 3600)}시간 전`;
+  return `${Math.floor(s / 86400)}일 전`;
+}
 function chatTime(ts){ const d = new Date(ts); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`; }
-function setBadge(){ const b = $("#chatBadge"); b.textContent = unread > 99 ? "99+" : unread; b.style.display = unread ? "flex" : "none"; }
-function showSetup(html){ $("#chatMsgs").innerHTML = `<div class="chat-setup">${html}</div>`; $("#chatForm").style.display = "none"; }
+function setBadge(){
+  unread = Object.entries(rooms).filter(([id, r]) => r.lastAt && r.lastUid !== myId && r.lastAt > (seenAt[id] || 0) && !(chatOpen && view === "room" && currentRoom === id)).length;
+  const b = $("#chatBadge"); b.textContent = unread > 99 ? "99+" : unread; b.style.display = unread ? "flex" : "none";
+}
+function markSeen(id){ seenAt[id] = nowMs(); store.set("lunch.seen", seenAt); }
 
+function initFirebase(){
+  if(fbReady) return true;
+  if(!FIREBASE_CONFIG || !window.firebase) return false;
+  try{
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+  }catch(e){ return false; }
+  fbReady = true;
+  db.ref(".info/serverTimeOffset").on("value", s => { serverOffset = s.val() || 0; });
+  const roomsRef = db.ref("lunchchat/rooms");
+  const onRoom = s => { rooms[s.key] = s.val(); cleanupIfStale(s.key); refreshRooms(); };
+  roomsRef.on("child_added", onRoom);
+  roomsRef.on("child_changed", onRoom);
+  roomsRef.on("child_removed", s => {
+    delete rooms[s.key];
+    if(currentRoom === s.key){ toast("하루 동안 대화가 없어서 방이 닫혔어요"); showRooms(); }
+    refreshRooms();
+  });
+  return true;
+}
+function cleanupIfStale(id){
+  const r = rooms[id];
+  if(!r || !r.lastAt || nowMs() - r.lastAt < DAY) return;
+  // 메시지 먼저, 그다음 방 삭제 (규칙이 하루 지난 방만 지우도록 허용)
+  db.ref("lunchchat/msgs/" + id).remove().catch(() => {}).then(() => db.ref("lunchchat/rooms/" + id).remove().catch(() => {}));
+}
+function liveRooms(){
+  return Object.entries(rooms).filter(([, r]) => r && r.name && (!r.lastAt || nowMs() - r.lastAt < DAY))
+    .sort((a, b) => (b[1].lastAt || 0) - (a[1].lastAt || 0));
+}
+
+/* ── 화면 그리기 ── */
+function head(html){ $("#chatHead").innerHTML = html; }
+function showOnly(which){
+  $("#roomsView").style.display = which === "rooms" ? "block" : "none";
+  $("#chatMsgs").style.display = which === "rooms" ? "none" : "flex";
+  $("#chatForm").style.display = which === "room" ? "flex" : "none";
+}
+function showSetup(html){
+  view = "setup"; showOnly("setup");
+  head(`<b>🍚 점심 팀</b><button class="x" data-c="close" aria-label="닫기">×</button>`);
+  $("#chatMsgs").innerHTML = `<div class="chat-setup">${html}</div>`;
+}
 function askNick(){
-  $("#chatMsgs").innerHTML = `<div class="chat-empty">채팅방에서 쓸 이름을 정해주세요<br><br>
-    <input id="nickIn" maxlength="12" placeholder="예: 디자인팀 준" style="font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:10px;width:200px"><br><br>
-    <button class="btn accent" id="nickOk">입장하기</button></div>`;
-  $("#chatForm").style.display = "none";
-  const ok = () => { const v = $("#nickIn").value.trim(); if(!v) return; myNick = v; store.set(NICK_KEY, v); startChat(); };
+  view = "nick"; showOnly("nick");
+  head(`<b>🍚 점심 팀</b><button class="x" data-c="close" aria-label="닫기">×</button>`);
+  $("#chatMsgs").innerHTML = `<div class="chat-empty">채팅에서 쓸 이름을 정해주세요<br><br>
+    <input id="nickIn" maxlength="12" placeholder="예: 디자인팀 준" value="${esc(myNick)}" style="font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:10px;width:200px"><br><br>
+    <button class="btn accent" id="nickOk">확인</button></div>`;
+  const ok = () => { const v = $("#nickIn").value.trim(); if(!v) return; myNick = v; store.set(NICK_KEY, v); showRooms(); };
   $("#nickOk").onclick = ok;
   $("#nickIn").onkeydown = e => { if(e.key === "Enter") ok(); };
   setTimeout(() => $("#nickIn")?.focus(), 50);
 }
-
+function showRooms(){
+  if(msgQuery){ msgQuery.off(); msgQuery = null; }
+  view = "rooms"; currentRoom = null; showOnly("rooms");
+  head(`<b>🍚 점심 팀</b><small>· <a href="#" data-c="nick" style="color:inherit">${esc(myNick)}</a></small>
+        <button class="plus" data-c="new" title="팀 만들기" aria-label="팀 만들기">+</button><button class="x" data-c="close" aria-label="닫기">×</button>`);
+  refreshRooms();
+}
+function refreshRooms(){
+  setBadge();
+  if(view !== "rooms") return;
+  const list = liveRooms();
+  const form = creating ? `<form class="newroom" id="newRoomForm"><input id="newRoomName" maxlength="20" placeholder="팀 이름 (예: 디자인팀 점심)"><button class="btn accent" type="submit">만들기</button><button class="btn ghost" type="button" data-c="cancel">취소</button></form>` : "";
+  const items = list.map(([id, r]) => {
+    const isNew = r.lastUid && r.lastUid !== myId && r.lastAt > (seenAt[id] || 0);
+    const last = r.lastText ? `${r.lastNick ? esc(r.lastNick) + ": " : ""}${esc(r.lastText)}` : "아직 대화가 없어요";
+    return `<div class="room" data-room="${esc(id)}"><div class="av">${esc([...r.name][0] || "팀")}</div>
+      <div class="rb"><div class="rn">${esc(r.name)}</div><div class="rl">${last}</div></div>
+      ${isNew ? '<span class="dot"></span>' : ""}<div class="rt">${ago(r.lastAt)}</div></div>`;
+  }).join("");
+  $("#roomsView").innerHTML = form + (items
+    ? items + `<div class="rooms-note">하루 동안 대화가 없는 팀은 자동으로 사라져요</div>`
+    : (creating ? "" : `<div class="rooms-empty">아직 만들어진 팀이 없어요<br><br><button class="btn accent" data-c="new">+ 팀 만들기</button></div>`));
+  if(creating){
+    $("#newRoomForm").onsubmit = e => { e.preventDefault(); createRoom($("#newRoomName").value); };
+    setTimeout(() => $("#newRoomName")?.focus(), 30);
+  }
+}
+function createRoom(name){
+  name = name.trim().slice(0, 20); if(!name) return;
+  const ref = db.ref("lunchchat/rooms").push();
+  const ts = firebase.database.ServerValue.TIMESTAMP;
+  ref.set({name, createdAt: ts, createdBy: myNick, lastAt: ts, lastText: "", lastNick: "", lastUid: ""})
+    .then(() => { creating = false; openRoom(ref.key); })
+    .catch(err => toast("팀을 만들지 못했어요: " + err.message, 4000));
+}
+function openRoom(id){
+  const r = rooms[id]; if(!r && !id) return;
+  if(msgQuery){ msgQuery.off(); msgQuery = null; }
+  view = "room"; currentRoom = id; showOnly("room");
+  head(`<button class="back" data-c="back" aria-label="팀 목록">‹</button><b>${esc((rooms[id] || {}).name || "팀")}</b><button class="x" data-c="close" aria-label="닫기" style="margin-left:auto">×</button>`);
+  $("#chatMsgs").innerHTML = `<div class="chat-empty" id="chatEmpty">첫 메시지를 남겨보세요 😋<br>"오늘 점심 뭐 드실래요?"</div>`;
+  msgQuery = db.ref("lunchchat/msgs/" + id).orderByChild("ts").limitToLast(100);
+  msgQuery.on("child_added", snap => {
+    const m = snap.val(); if(!m || !m.text) return;
+    $("#chatEmpty")?.remove();
+    const box = $("#chatMsgs");
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    box.appendChild(renderMsg(m));
+    if(atBottom || m.uid === myId) box.scrollTop = box.scrollHeight;
+    markSeen(id); setBadge();
+  });
+  markSeen(id); setBadge();
+  if(pendingShare){ const p = pendingShare; pendingShare = null; sharePlace(p); }
+  setTimeout(() => $("#chatInput").focus(), 50);
+}
 function renderMsg(m){
   const me = m.uid === myId;
   const div = document.createElement("div");
@@ -453,60 +587,56 @@ function renderMsg(m){
   div.innerHTML = `${me ? "" : `<div class="who">${esc(m.nick)}</div>`}<div class="bubble">${body}</div><div class="time">${chatTime(m.ts)}</div>`;
   return div;
 }
-
-function startChat(){
-  $("#chatMe").textContent = myNick ? `· ${myNick}` : "";
-  if(chatReady) { $("#chatForm").style.display = "flex"; return; }
-  if(!FIREBASE_CONFIG){ showSetup("채팅을 켜려면 <b>index.html</b> 위쪽의 <code>FIREBASE_CONFIG</code>에 Firebase 설정값을 넣어야 해요. 방법은 README에 있어요."); return; }
-  if(!window.firebase){ showSetup("채팅 서버(Firebase)를 불러오지 못했어요. 인터넷 연결을 확인해 주세요."); return; }
-  try{
-    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-    chatRef = firebase.database().ref("lunchchat/messages");
-  }catch(err){ showSetup("채팅 연결 오류: " + esc(err.message)); return; }
-  chatReady = true;
-  $("#chatMsgs").innerHTML = `<div class="chat-empty" id="chatEmpty">아직 대화가 없어요.<br>"오늘 점심 뭐 드실래요?" 😋</div>`;
-  $("#chatForm").style.display = "flex";
-  const startedAt = Date.now();
-  chatRef.orderByChild("ts").limitToLast(100).on("child_added", snap => {
-    const m = snap.val(); if(!m || !m.text) return;
-    $("#chatEmpty")?.remove();
-    const box = $("#chatMsgs");
-    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
-    box.appendChild(renderMsg(m));
-    if(atBottom || m.uid === myId) box.scrollTop = box.scrollHeight;
-    if(!chatOpen && m.uid !== myId && m.ts > startedAt){ unread++; setBadge(); }
-  }, err => showSetup("채팅을 읽을 권한이 없어요. Firebase 데이터베이스 규칙을 확인해 주세요.<br><small>" + esc(err.message) + "</small>"));
-}
-
 function sendChat(text, place){
-  if(!chatRef || !text.trim()) return;
-  chatRef.push({uid: myId, nick: myNick, text: text.trim().slice(0, 300), place: place || null, ts: firebase.database.ServerValue.TIMESTAMP})
+  text = (text || "").trim().slice(0, 300);
+  if(!db || !currentRoom || !text) return;
+  const ts = firebase.database.ServerValue.TIMESTAMP, id = currentRoom;
+  db.ref("lunchchat/msgs/" + id).push({uid: myId, nick: myNick, text, place: place || null, ts})
+    .then(() => db.ref("lunchchat/rooms/" + id).update({lastAt: ts, lastText: text.slice(0, 60), lastNick: myNick, lastUid: myId}))
     .catch(err => toast("전송 실패: " + err.message, 4000));
 }
+function sharePlace(p){ sendChat(`📍 ${p.name} 어때요? (${p.group} · ${p.category} · ${p.distance}m)`, p.id); }
 function shareToChat(p){
-  if(!FIREBASE_CONFIG){ toast("채팅이 아직 설정되지 않았어요"); return; }
-  if(!myNick){ openChat(); toast("먼저 채팅방 이름을 정해주세요"); return; }
-  if(!chatReady) startChat();
-  sendChat(`📍 ${p.name} 어때요? (${p.group} · ${p.category} · ${p.distance}m)`, p.id);
+  if(!initFirebase()){ toast("채팅을 사용할 수 없어요"); return; }
   openChat();
+  if(!myNick){ pendingShare = p; return; }
+  if(view === "room" && currentRoom){ sharePlace(p); return; }
+  pendingShare = p; toast("공유할 팀을 골라주세요");
 }
+
 function openChat(){
-  chatOpen = true; unread = 0; setBadge();
-  $("#chatPanel").classList.add("on");
-  if(!myNick) askNick(); else startChat();
-  setTimeout(() => { const b = $("#chatMsgs"); b.scrollTop = b.scrollHeight; $("#chatInput").focus(); }, 50);
+  chatOpen = true; $("#chatPanel").classList.add("on");
+  if(!FIREBASE_CONFIG){ showSetup("채팅 설정(FIREBASE_CONFIG)이 비어 있어요."); return; }
+  if(!initFirebase()){ showSetup("채팅 서버(Firebase)를 불러오지 못했어요. 인터넷 연결을 확인해 주세요."); return; }
+  if(!myNick) askNick();
+  else if(view === "room" && currentRoom && rooms[currentRoom]) openRoom(currentRoom);
+  else showRooms();
 }
-function closeChat(){ chatOpen = false; $("#chatPanel").classList.remove("on"); }
+function closeChat(){ chatOpen = false; $("#chatPanel").classList.remove("on"); if(msgQuery){ msgQuery.off(); msgQuery = null; } setBadge(); }
 
 $("#chatFab").addEventListener("click", () => chatOpen ? closeChat() : openChat());
-$("#chatClose").addEventListener("click", closeChat);
+$("#chatHead").addEventListener("click", e => {
+  const c = e.target.closest("[data-c]")?.dataset.c; if(!c) return;
+  e.preventDefault();
+  if(c === "close") closeChat();
+  else if(c === "back") showRooms();
+  else if(c === "new"){ creating = true; refreshRooms(); }
+  else if(c === "nick") askNick();
+});
+$("#roomsView").addEventListener("click", e => {
+  const c = e.target.closest("[data-c]")?.dataset.c;
+  if(c === "new"){ creating = true; refreshRooms(); return; }
+  if(c === "cancel"){ creating = false; refreshRooms(); return; }
+  const r = e.target.closest(".room"); if(r) openRoom(r.dataset.room);
+});
 $("#chatForm").addEventListener("submit", e => { e.preventDefault(); sendChat($("#chatInput").value); $("#chatInput").value = ""; });
 $("#chatMsgs").addEventListener("click", e => {
   const id = e.target.dataset.place; if(!id) return;
   if(places.some(p => p.id === id)) openPlace(id, false); else toast("목록에 없는 가게예요");
 });
-// 이름이 이미 있으면 페이지를 열자마자 채팅을 연결해서 안 읽은 메시지 수를 보여줌
-if(myNick && FIREBASE_CONFIG) startChat();
+setInterval(() => { if(view === "rooms" && chatOpen) refreshRooms(); else setBadge(); }, 30000);   // "N분 전" 갱신
+// 페이지를 열자마자 연결해서 새 대화가 있는 팀 수를 배지로 보여줌
+if(FIREBASE_CONFIG) initFirebase();
 
 /* ───── 시작 ───── */
 render();
