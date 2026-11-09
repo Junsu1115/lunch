@@ -1,0 +1,77 @@
+# 점심 뭐 먹지? — 사이트 버전 🍚
+
+회사(서울 강남구 신사동 663-7) 반경 300m 식당 지도 + 메뉴/사진/후기 + 회사 사람들 단체 채팅.
+`index.html` 파일 하나로 돌아가요. 서버가 필요 없어요.
+
+---
+
+## 1. GitHub Pages에 올리기 (5분)
+
+1. github.com 로그인 → 오른쪽 위 **+ → New repository**
+2. 이름 `lunch`, **Public** 선택 → Create repository
+3. **uploading an existing file** 클릭 → `index.html` 끌어다 놓기 → Commit changes
+4. 저장소의 **Settings → Pages** → Branch를 `main` / `/(root)` 로 선택 → Save
+5. 1~2분 뒤 주소가 생겨요: `https://내아이디.github.io/lunch/`
+
+## 2. 카카오에 사이트 주소 등록 (지도가 뜨려면 필수)
+
+developers.kakao.com → 내 애플리케이션 → **[ZIP-UP] 오늘 뭐 먹지?** → 앱 → 플랫폼 키 → **JavaScript 키** →
+JavaScript SDK 도메인에 `https://내아이디.github.io` 추가 → 저장
+
+> 주소 끝의 `/lunch` 는 빼고, `https://내아이디.github.io` 까지만 넣어요.
+
+## 3. 채팅 켜기 — Firebase (무료, 10분)
+
+1. https://console.firebase.google.com → 구글 로그인 → **프로젝트 추가** (이름: lunch-chat, 애널리틱스는 꺼도 돼요)
+2. 왼쪽 메뉴 **빌드 → Realtime Database → 데이터베이스 만들기**
+   - 위치: `asia-southeast1 (싱가포르)` → **잠금 모드로 시작**
+3. **규칙** 탭에 아래 내용을 붙여넣고 **게시**
+   ```json
+   {
+     "rules": {
+       "lunchchat": {
+         "messages": {
+           ".read": true,
+           ".indexOn": ["ts"],
+           "$id": {
+             ".write": "!data.exists()",
+             ".validate": "newData.hasChildren(['uid','nick','text','ts']) && newData.child('text').isString() && newData.child('text').val().length <= 300"
+           }
+         }
+       }
+     }
+   }
+   ```
+   (새 메시지 쓰기와 읽기만 허용하고, 남의 메시지를 고치거나 지우는 건 막아요.)
+4. 왼쪽 위 ⚙️ **프로젝트 설정 → 일반 → 내 앱 → 웹(`</>`)** → 앱 이름 아무거나 → 등록
+5. 화면에 나온 `firebaseConfig = { ... }` 부분을 복사해서 `index.html` 위쪽의
+   ```js
+   const FIREBASE_CONFIG = null;
+   ```
+   를 이렇게 바꿔요 (`databaseURL` 이 꼭 들어 있어야 해요):
+   ```js
+   const FIREBASE_CONFIG = {
+     apiKey: "...",
+     authDomain: "lunch-chat-xxxx.firebaseapp.com",
+     databaseURL: "https://lunch-chat-xxxx-default-rtdb.asia-southeast1.firebasedatabase.app",
+     projectId: "lunch-chat-xxxx",
+     appId: "..."
+   };
+   ```
+6. 수정한 `index.html` 을 GitHub 저장소에 다시 올리면 끝.
+
+---
+
+## 기능
+- **지도**: 회사 중심, 반경 300m. 핀 색 = 한식 주황 / 분식 분홍 / 양식 파랑 / 중식 빨강 / 일식 초록
+- **목록**: 종류 탭, 가까운 순/이름순, 검색, 숨기기
+- **가게를 누르거나 🎲 뽑기** → 맨 위에 카카오맵 화면이 **메뉴/가격 · 사진 · 후기** 탭으로 떠요
+- **💬 채팅** (오른쪽 아래 동그란 버튼): 처음에 이름 정하고 입장 → 회사 사람들끼리 실시간 대화.
+  가게 박스의 **채팅에 공유** 를 누르면 "📍 ○○ 어때요?" 가 올라가고, 채팅에서 누르면 그 가게가 열려요.
+- 술집·카페·디저트, 고기집(삼겹살·갈비·곱창·족발), 양꼬치, 회집은 빠져요. 찜닭·삼계탕은 남아요.
+
+## 알아둘 점
+- 숨기기 목록과 채팅 이름은 **각자 브라우저에** 저장돼요.
+- 식당 목록은 하루 동안 브라우저에 저장했다가 다시 불러와요. 바로 새로 받고 싶으면 **식당 새로 불러오기**.
+- 사이트 주소를 아는 사람은 누구나 채팅을 읽고 쓸 수 있어요. 주소는 회사 사람들끼리만 공유하세요.
+- 카카오 JavaScript 키는 원래 웹페이지에 공개되는 키예요. 등록한 도메인에서만 작동해서 괜찮아요.

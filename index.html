@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>점심 뭐 먹지?</title>
+<style>
+  :root{--bg:#f6f4ef;--ink:#1f1b16;--muted:#8a8175;--line:#e6e0d6;--card:#fff;--accent:#ff6b35}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
+  .app{display:flex;height:100vh}
+  #map{flex:1;position:relative;background:#e9e5dd}
+  .map-msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);padding:40px;line-height:1.7}
+  aside{width:400px;display:flex;flex-direction:column;border-left:1px solid var(--line);background:var(--bg);min-height:0}
+  header{padding:16px 16px 12px;border-bottom:1px solid var(--line);background:#fff}
+  h1{margin:0;font-size:20px;letter-spacing:-.3px}
+  h1 b{color:var(--accent)}
+  .sub{font-size:12px;color:var(--muted);margin-top:3px}
+  .ctrl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:13px}
+  select,input[type=text]{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fff}
+  .btn{font:inherit;font-size:13px;border:0;border-radius:8px;padding:7px 11px;cursor:pointer;background:var(--ink);color:#fff}
+  .btn.ghost{background:#f1ede6;color:var(--ink)}
+  .btn.accent{background:var(--accent)}
+  .btn:disabled{opacity:.5;cursor:default}
+  label.ck{display:inline-flex;gap:4px;align-items:center;cursor:pointer;color:#4a443c}
+  .spacer{flex:1}
+  .tabs{display:flex;gap:4px;padding:10px 12px 0;flex-wrap:wrap}
+  .tab{font:inherit;font-size:13px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 11px;cursor:pointer;display:inline-flex;gap:5px;align-items:center}
+  .tab .dot{width:9px;height:9px;border-radius:50%}
+  .tab small{color:var(--muted)}
+  .tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .tab.on small{color:#ddd}
+  .count{font-size:12px;color:var(--muted);padding:8px 16px 0}
+  .list{flex:1;overflow:auto;padding:8px 12px 90px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:8px;cursor:pointer;transition:border-color .15s, box-shadow .15s}
+  .card:hover{border-color:#cfc6b8}
+  .card.sel{border-color:var(--accent);box-shadow:0 0 0 2px #ff6b3533}
+  .card.hiddenp{opacity:.45}
+  .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+  .name{font-weight:700;font-size:15px}
+  .meta{font-size:12px;color:var(--muted);margin-top:3px}
+  .dist{font-size:12px;color:var(--muted);white-space:nowrap}
+  .gtag{font-size:11px;font-weight:700;border-radius:6px;padding:1px 6px;color:#fff;margin-right:5px;vertical-align:1px}
+  .row{display:flex;gap:6px;margin-top:9px;align-items:center}
+  .link{font:inherit;font-size:12px;border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 9px;cursor:pointer;color:var(--ink);text-decoration:none}
+  .link.k{background:#fee500;border-color:#fee500;color:#191600;font-weight:600}
+  .empty{text-align:center;color:var(--muted);padding:40px 10px;line-height:1.8;font-size:14px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:80vw;z-index:60}
+  .toast.on{opacity:1}
+  .company-pin{background:var(--ink);color:#fff;font-size:12px;font-weight:700;padding:5px 9px;border-radius:999px;box-shadow:0 2px 6px #0004;white-space:nowrap}
+  .pin{width:16px;height:16px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 1px 4px #0006;cursor:pointer;transition:transform .12s}
+  .pin:hover,.pin.sel{transform:scale(1.45)}
+  .iwbox{background:#fff;border-radius:10px;box-shadow:0 3px 12px #0003;padding:9px 12px;font-size:13px;line-height:1.5;min-width:150px;transform:translateY(-14px)}
+  .iwbox b{font-size:14px}
+  .home-btn{position:absolute;left:12px;top:12px;z-index:10;box-shadow:0 2px 6px #0003}
+  .pickbox{background:#fff;border:2px solid var(--accent);border-radius:14px;margin-bottom:10px;overflow:hidden}
+  .pickhead{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#fff4ee}
+  .pickhead .t{font-size:12px;color:var(--accent);font-weight:700}
+  .pickhead .n{font-size:16px;font-weight:800}
+  .ptabs{display:flex;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .ptab{flex:1;font:inherit;font-size:14px;font-weight:600;padding:10px 0;border:0;background:#fff;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent}
+  .ptab.on{color:var(--ink);border-bottom-color:var(--accent)}
+  .pickframe{width:100%;height:560px;border:0;display:block;background:#f6f4ef}
+  .pickfoot{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--line);flex-wrap:wrap}
+
+  /* ───── 채팅 ───── */
+  .chat-fab{position:fixed;right:22px;bottom:22px;width:60px;height:60px;border-radius:50%;border:0;background:var(--accent);color:#fff;cursor:pointer;box-shadow:0 6px 18px #ff6b3566, 0 2px 6px #0003;display:flex;align-items:center;justify-content:center;z-index:40;transition:transform .15s}
+  .chat-fab:hover{transform:scale(1.06)}
+  .chat-fab svg{width:28px;height:28px}
+  .chat-badge{position:absolute;top:-2px;right:-2px;min-width:22px;height:22px;border-radius:11px;background:#e03131;color:#fff;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 6px;border:2px solid #fff}
+  .chat-panel{position:fixed;right:22px;bottom:94px;width:360px;height:520px;max-height:calc(100vh - 120px);background:#fff;border-radius:16px;box-shadow:0 12px 40px #0003, 0 2px 8px #0002;display:none;flex-direction:column;overflow:hidden;z-index:41}
+  .chat-panel.on{display:flex}
+  .chat-head{padding:12px 14px;background:var(--ink);color:#fff;display:flex;align-items:center;gap:8px}
+  .chat-head b{font-size:15px}
+  .chat-head small{color:#cfc8bf;font-size:12px}
+  .chat-head button{margin-left:auto;background:transparent;border:0;color:#fff;font-size:20px;cursor:pointer;line-height:1}
+  .chat-msgs{flex:1;overflow:auto;padding:12px;background:#f6f4ef;display:flex;flex-direction:column;gap:8px}
+  .msg{max-width:80%;display:flex;flex-direction:column;gap:2px}
+  .msg .who{font-size:11px;color:var(--muted);padding:0 4px}
+  .msg .bubble{background:#fff;border-radius:14px 14px 14px 4px;padding:8px 11px;font-size:14px;line-height:1.45;word-break:break-word;box-shadow:0 1px 2px #0001}
+  .msg .time{font-size:10px;color:#a8a097;padding:0 4px}
+  .msg.me{align-self:flex-end;align-items:flex-end}
+  .msg.me .bubble{background:var(--accent);color:#fff;border-radius:14px 14px 4px 14px}
+  .msg .bubble a{color:inherit;font-weight:700}
+  .msg .share{display:block;margin-top:4px;font-size:12px;text-decoration:underline;cursor:pointer}
+  .chat-empty{margin:auto;text-align:center;color:var(--muted);font-size:13px;line-height:1.7}
+  .chat-form{display:flex;gap:6px;padding:10px;border-top:1px solid var(--line)}
+  .chat-form input{flex:1;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:20px;padding:9px 14px}
+  .chat-form button{border:0;border-radius:20px;background:var(--accent);color:#fff;font:inherit;font-size:14px;padding:0 16px;cursor:pointer}
+  .chat-setup{padding:24px 18px;font-size:13px;line-height:1.7;color:#4a443c}
+
+  @media (max-width: 760px){
+    .app{flex-direction:column;height:auto;min-height:100vh}
+    #map{flex:none;height:45vh}
+    aside{width:100%;border-left:0}
+    .list{overflow:visible}
+    .chat-panel{right:10px;left:10px;width:auto;bottom:90px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="map"><div class="map-msg" id="mapMsg">지도를 불러오는 중…</div>
+    <button class="btn home-btn" id="homeBtn" title="회사 위치로">🏢 회사로</button></div>
+  <aside>
+    <header>
+      <h1>점심 <b>뭐 먹지?</b></h1>
+      <div class="sub" id="sub">-</div>
+      <div class="ctrl">
+        <select id="sort">
+          <option value="distance">가까운 순</option>
+          <option value="name">이름순</option>
+        </select>
+        <input type="text" id="q" placeholder="이름·종류 검색" style="flex:1;min-width:90px">
+        <label class="ck"><input type="checkbox" id="showHidden">숨긴 곳</label>
+      </div>
+      <div class="ctrl">
+        <button class="btn accent" id="pick">🎲 이 중에서 뽑기</button>
+        <span class="spacer"></span>
+        <button class="btn ghost" id="refresh">식당 새로 불러오기</button>
+      </div>
+    </header>
+    <div class="tabs" id="tabs"></div>
+    <div class="count" id="count"></div>
+    <div class="list" id="list"></div>
+  </aside>
+</div>
+
+<!-- 채팅 -->
+<button class="chat-fab" id="chatFab" aria-label="단체 채팅 열기">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-5A8.4 8.4 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z"/></svg>
+  <span class="chat-badge" id="chatBadge">0</span>
+</button>
+<div class="chat-panel" id="chatPanel" role="dialog" aria-label="점심 단체 채팅">
+  <div class="chat-head"><b>🍚 점심 단체방</b><small id="chatMe"></small><button id="chatClose" aria-label="닫기">×</button></div>
+  <div class="chat-msgs" id="chatMsgs"></div>
+  <form class="chat-form" id="chatForm" autocomplete="off">
+    <input id="chatInput" maxlength="300" placeholder="메시지 입력">
+    <button type="submit">보내기</button>
+  </form>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- Firebase (채팅용) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+/* ═════════════ 설정 ═════════════ */
+const KAKAO_JS_KEY = "093c7ae93569953c7484af1227ef2cee";       // 카카오 JavaScript 키
+const COMPANY = {address: "서울 강남구 신사동 663-7", lat: 37.5265487, lng: 127.0382152};
+const RADIUS = 300;                                           // 회사 기준 반경 (m)
+// Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹)에서 복사한 값을 넣으세요. 비워두면 채팅만 꺼져요.
+const FIREBASE_CONFIG = null;
+/* ════════════════════════════════ */
+
+const GROUPS = {"한식": "#e8590c", "분식": "#d6336c", "양식": "#1971c2", "중식": "#c92a2a", "일식": "#2b8a3e", "기타": "#868e96"};
+const PICK_TABS = [["menu", "🍽 메뉴/가격", "#menuInfo"], ["photo", "📷 사진", "#photoview"], ["review", "💬 후기", "#review"]];
+const CACHE_KEY = "lunch.places.v1", HIDDEN_KEY = "lunch.hidden", NICK_KEY = "lunch.nick";
+const $ = s => document.querySelector(s);
+
+let places = [], hidden = new Set(), updatedAt = "";
+let map = null, info = null, markers = {}, selected = null, group = "전체";
+let pickedId = null, pickTab = "menu", pickByDice = false;
+
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+hidden = new Set(store.get(HIDDEN_KEY, []));
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const kakaoUrl = p => p.kakao_url || `https://place.map.kakao.com/${p.id}`;
+const pickSrc = p => kakaoUrl(p) + (PICK_TABS.find(x => x[0] === pickTab) || PICK_TABS[0])[2];
+function toast(msg, ms = 2600){ const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), ms); }
+
+/* ───── 분류 ───── */
+function skipPlace(cat){
+  if(/^음식점 > (술집|간식)/.test(cat) || /카페/.test(cat)) return true;           // 술집·디저트·카페
+  if(cat.includes("육류,고기") && !cat.includes("닭요리")) return true;             // 고기집 (닭요리는 남김)
+  if(cat.includes("양꼬치")) return true;
+  const parts = cat.split(">").map(x => x.trim()).slice(1);
+  return parts.some(x => x === "회" || x.endsWith("회") || x.includes("횟집"));     // 회집
+}
+function foodGroup(cat){
+  const parts = cat.split(">").map(x => x.trim());
+  const main = parts[1] || "", sub = parts[2] || "";
+  if(main === "퓨전요리") return ({"퓨전한식": "한식", "퓨전일식": "일식", "퓨전중식": "중식"})[sub] || "양식";
+  if(main === "분식") return "분식";
+  if(main === "한식") return "한식";
+  if(["양식", "패스트푸드", "샐러드"].includes(main)) return "양식";
+  if(main === "중식") return "중식";
+  if(main === "일식") return "일식";
+  return "기타";
+}
+function haversine(a, b, c, d){
+  const R = 6371000, p1 = a * Math.PI / 180, p2 = c * Math.PI / 180, dp = p2 - p1, dl = (d - b) * Math.PI / 180;
+  const x = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+/* ───── 식당 수집 (카카오 지도 SDK 장소 검색) ───── */
+function categorySearch(ps, lat, lng, radius, page){
+  return new Promise(resolve => {
+    ps.categorySearch("FD6", (data, status, pg) => {
+      resolve({data: status === kakao.maps.services.Status.OK ? data : [], isEnd: !pg || !pg.hasNextPage});
+    }, {location: new kakao.maps.LatLng(lat, lng), radius, page, sort: kakao.maps.services.SortBy.DISTANCE});
+  });
+}
+async function collect(){
+  const ps = new kakao.maps.services.Places();
+  const grid = 5, half = 2, step = RADIUS * 0.9 / half, sub = Math.floor(step * 0.75) + 1;
+  const mpl = 111320 * Math.cos(COMPANY.lat * Math.PI / 180);
+  const found = {};
+  for(let iy = -half; iy <= half; iy++) for(let ix = -half; ix <= half; ix++){
+    const clat = COMPANY.lat + iy * step / 111320, clng = COMPANY.lng + ix * step / mpl;
+    if(haversine(COMPANY.lat, COMPANY.lng, clat, clng) > RADIUS + sub) continue;
+    for(let page = 1; page <= 3; page++){
+      const {data, isEnd} = await categorySearch(ps, clat, clng, sub, page);
+      for(const d of data){
+        const lat = +d.y, lng = +d.x, dist = haversine(COMPANY.lat, COMPANY.lng, lat, lng);
+        if(dist > RADIUS || skipPlace(d.category_name)) continue;
+        found[d.id] = {id: d.id, name: d.place_name, category: d.category_name.split(">").pop().trim(), category_full: d.category_name,
+          address: d.address_name, road_address: d.road_address_name, lat, lng, distance: Math.round(dist), kakao_url: d.place_url,
+          group: foodGroup(d.category_name)};
+      }
+      if(isEnd) break;
+    }
+  }
+  return Object.values(found).sort((a, b) => a.distance - b.distance);
+}
+async function loadPlaces(force){
+  const cache = store.get(CACHE_KEY, null);
+  if(!force && cache && Date.now() - cache.t < 24 * 3600 * 1000 && cache.places?.length){
+    places = cache.places; updatedAt = cache.label; render(); return;
+  }
+  const b = $("#refresh"); b.disabled = true; b.textContent = "불러오는 중…";
+  try{
+    places = await collect();
+    const d = new Date(); updatedAt = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    store.set(CACHE_KEY, {t: Date.now(), label: updatedAt, places});
+    toast(`${places.length}곳을 불러왔어요`);
+  }catch(err){ toast("식당을 불러오지 못했어요: " + err.message, 5000); }
+  b.disabled = false; b.textContent = "식당 새로 불러오기";
+  render();
+}
+
+/* ───── 목록 ───── */
+function visible(){
+  const q = $("#q").value.trim(), withHidden = $("#showHidden").checked;
+  const arr = places.filter(p => {
+    if(hidden.has(p.id) && !withHidden) return false;
+    if(group !== "전체" && p.group !== group) return false;
+    if(q && !(p.name + " " + p.category_full).includes(q)) return false;
+    return true;
+  });
+  if($("#sort").value === "name") arr.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  else arr.sort((a, b) => a.distance - b.distance);
+  return arr;
+}
+function card(p){
+  const h = hidden.has(p.id);
+  return `<div class="card ${h ? "hiddenp" : ""} ${selected === p.id ? "sel" : ""}" data-id="${esc(p.id)}">
+    <div class="top">
+      <div class="name"><span class="gtag" style="background:${GROUPS[p.group] || "#868e96"}">${esc(p.group)}</span>${esc(p.name)}</div>
+      <div class="dist">${p.distance}m</div>
+    </div>
+    <div class="meta">${esc(p.category)} · ${esc(p.road_address || p.address)}</div>
+    <div class="row"><span class="spacer"></span><button class="link" data-act="hide">${h ? "다시 보기" : "숨기기"}</button></div>
+  </div>`;
+}
+function pickPanel(){
+  const p = places.find(x => x.id === pickedId);
+  if(!p) return "";
+  return `<div class="pickbox" id="pickbox">
+    <div class="pickhead"><div style="flex:1"><div class="t">${pickByDice ? "🎲 오늘의 점심" : "📍 선택한 가게"}</div>
+      <div class="n"><span class="gtag" style="background:${GROUPS[p.group] || "#868e96"}">${esc(p.group)}</span>${esc(p.name)}</div>
+      <div class="meta">${esc(p.category)} · ${p.distance}m</div></div></div>
+    <div class="ptabs">${PICK_TABS.map(([k, label]) => `<button class="ptab ${k === pickTab ? "on" : ""}" data-ptab="${k}">${label}</button>`).join("")}</div>
+    <iframe class="pickframe" src="${esc(pickSrc(p))}" title="카카오맵 가게 정보"></iframe>
+    <div class="pickfoot">
+      <a class="link k" href="${esc(pickSrc(p))}" target="_blank" rel="noopener">새 창으로 크게 보기</a>
+      <button class="link" data-pick="share">💬 채팅에 공유</button>
+      <span class="spacer"></span>
+      <button class="link" data-pick="again">🎲 다시 뽑기</button>
+      <button class="link" data-pick="close">닫기</button>
+    </div>
+  </div>`;
+}
+function renderTabs(){
+  const base = places.filter(p => !hidden.has(p.id));
+  const names = ["전체", "한식", "분식", "양식", "중식", "일식"];
+  if(base.some(p => p.group === "기타")) names.push("기타");
+  $("#tabs").innerHTML = names.map(g => {
+    const n = g === "전체" ? base.length : base.filter(p => p.group === g).length;
+    const dot = GROUPS[g] ? `<span class="dot" style="background:${GROUPS[g]}"></span>` : "";
+    return `<button class="tab ${g === group ? "on" : ""}" data-g="${g}">${dot}${g} <small>${n}</small></button>`;
+  }).join("");
+}
+function render(){
+  $("#sub").textContent = `${COMPANY.address} 반경 ${RADIUS}m${updatedAt ? " · " + updatedAt + " 기준" : ""}`;
+  renderTabs();
+  const arr = visible();
+  $("#count").textContent = places.length ? `${arr.length}곳 표시 중` : "";
+  const old = $("#pickbox"), keep = old && old.dataset.id === pickedId ? old : null;
+  $("#list").innerHTML = pickPanel() + (arr.length ? arr.map(card).join("")
+    : places.length ? `<div class="empty">조건에 맞는 식당이 없어요.</div>`
+    : `<div class="empty">식당을 불러오는 중이에요…</div>`);
+  if(keep && $("#pickbox")){   // 같은 가게면 카카오맵 화면을 다시 로딩하지 않음
+    const fresh = $("#pickbox");
+    keep.querySelector(".pickhead").replaceWith(fresh.querySelector(".pickhead"));
+    fresh.replaceWith(keep);
+  }
+  if($("#pickbox")) $("#pickbox").dataset.id = pickedId;
+  syncMarkers(arr);
+}
+
+/* ───── 지도 ───── */
+function initMap(){
+  const s = document.createElement("script");
+  s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_JS_KEY}&libraries=services&autoload=false`;
+  s.onerror = () => { $("#mapMsg").innerHTML = "카카오맵을 불러오지 못했어요.<br>카카오 개발자 콘솔의 JavaScript SDK 도메인에<br><b>" + esc(location.origin) + "</b> 이 등록됐는지 확인하세요."; };
+  s.onload = () => kakao.maps.load(() => {
+    $("#mapMsg").remove();
+    const pos = new kakao.maps.LatLng(COMPANY.lat, COMPANY.lng);
+    map = new kakao.maps.Map($("#map"), {center: pos, level: 3});
+    map.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHT);
+    new kakao.maps.CustomOverlay({position: pos, content: '<div class="company-pin">🏢 우리 회사</div>', yAnchor: 1.4, zIndex: 3}).setMap(map);
+    new kakao.maps.Circle({center: pos, radius: RADIUS, strokeWeight: 1, strokeColor: "#ff6b35", strokeOpacity: .6, strokeStyle: "dash", fillColor: "#ff6b35", fillOpacity: .04}).setMap(map);
+    loadPlaces(false);
+  });
+  document.head.appendChild(s);
+}
+function syncMarkers(arr){
+  if(!map) return;
+  const show = new Set(arr.map(p => p.id));
+  for(const p of places){
+    let m = markers[p.id];
+    if(!m && show.has(p.id)){
+      const el = document.createElement("div");
+      el.className = "pin"; el.title = p.name; el.style.background = GROUPS[p.group] || "#868e96";
+      el.addEventListener("click", () => openPlace(p.id, false));
+      m = markers[p.id] = new kakao.maps.CustomOverlay({position: new kakao.maps.LatLng(p.lat, p.lng), content: el, zIndex: 2});
+      m._el = el;
+    }
+    if(m) m.setMap(show.has(p.id) ? map : null);
+  }
+  if(info && selected && !show.has(selected)) info.setMap(null);
+}
+function focusPlace(id){
+  const p = places.find(x => x.id === id); if(!p) return;
+  selected = id;
+  document.querySelectorAll(".card.sel").forEach(e => e.classList.remove("sel"));
+  const el = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+  if(el) el.classList.add("sel");
+  document.querySelectorAll(".pin.sel").forEach(e => e.classList.remove("sel"));
+  if(map && markers[id]){
+    markers[id]._el.classList.add("sel");
+    if(info) info.setMap(null);
+    info = new kakao.maps.CustomOverlay({position: markers[id].getPosition(), yAnchor: 1, zIndex: 5,
+      content: `<div class="iwbox"><b>${esc(p.name)}</b><br>${esc(p.group)} · ${esc(p.category)} · ${p.distance}m</div>`});
+    info.setMap(map);
+    map.panTo(markers[id].getPosition());
+  }
+}
+function openPlace(id, byDice){
+  if(pickedId !== id) pickTab = "menu";
+  pickedId = id; pickByDice = byDice;
+  render(); focusPlace(id);
+  $("#list").scrollTop = 0;
+  if(window.innerWidth <= 760) $("aside").scrollIntoView({behavior: "smooth"});
+}
+
+/* ───── 이벤트 ───── */
+$("#homeBtn").addEventListener("click", () => {
+  if(!map) return;
+  if(info) info.setMap(null);
+  map.setLevel(3); map.panTo(new kakao.maps.LatLng(COMPANY.lat, COMPANY.lng));
+});
+$("#tabs").addEventListener("click", e => { const b = e.target.closest(".tab"); if(b){ group = b.dataset.g; render(); } });
+$("#list").addEventListener("click", e => {
+  const pt = e.target.closest(".ptab");
+  if(pt){
+    pickTab = pt.dataset.ptab;
+    const p = places.find(x => x.id === pickedId); if(!p) return;
+    document.querySelectorAll(".ptab").forEach(b => b.classList.toggle("on", b.dataset.ptab === pickTab));
+    const fr = document.createElement("iframe");
+    fr.className = "pickframe"; fr.title = "카카오맵 가게 정보"; fr.src = pickSrc(p);
+    document.querySelector(".pickframe").replaceWith(fr);
+    const a = document.querySelector(".pickfoot a.k"); if(a) a.href = pickSrc(p);
+    return;
+  }
+  const pk = e.target.dataset.pick;
+  if(pk){
+    const p = places.find(x => x.id === pickedId);
+    if(pk === "again") $("#pick").click();
+    else if(pk === "close"){ pickedId = null; render(); }
+    else if(pk === "share" && p) shareToChat(p);
+    return;
+  }
+  const c = e.target.closest(".card"); if(!c) return;
+  const id = c.dataset.id;
+  if(e.target.dataset.act === "hide"){
+    hidden.has(id) ? hidden.delete(id) : hidden.add(id);
+    store.set(HIDDEN_KEY, [...hidden]); render(); return;
+  }
+  openPlace(id, false);
+});
+["#sort", "#showHidden"].forEach(s => $(s).addEventListener("change", render));
+$("#q").addEventListener("input", render);
+$("#pick").addEventListener("click", () => {
+  const from = visible().filter(p => !hidden.has(p.id));
+  if(!from.length){ toast("뽑을 식당이 없어요"); return; }
+  const p = from[Math.floor(Math.random() * from.length)];
+  openPlace(p.id, true);
+  toast(`오늘은 ${p.name}!`, 3000);
+});
+$("#refresh").addEventListener("click", () => loadPlaces(true));
+
+/* ═════════════ 단체 채팅 (Firebase Realtime Database) ═════════════ */
+let chatRef = null, chatOpen = false, unread = 0, myNick = store.get(NICK_KEY, ""), chatReady = false;
+const myId = store.get("lunch.uid", null) || (() => { const id = Math.random().toString(36).slice(2, 10); store.set("lunch.uid", id); return id; })();
+
+function chatTime(ts){ const d = new Date(ts); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`; }
+function setBadge(){ const b = $("#chatBadge"); b.textContent = unread > 99 ? "99+" : unread; b.style.display = unread ? "flex" : "none"; }
+function showSetup(html){ $("#chatMsgs").innerHTML = `<div class="chat-setup">${html}</div>`; $("#chatForm").style.display = "none"; }
+
+function askNick(){
+  $("#chatMsgs").innerHTML = `<div class="chat-empty">채팅방에서 쓸 이름을 정해주세요<br><br>
+    <input id="nickIn" maxlength="12" placeholder="예: 디자인팀 준" style="font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:10px;width:200px"><br><br>
+    <button class="btn accent" id="nickOk">입장하기</button></div>`;
+  $("#chatForm").style.display = "none";
+  const ok = () => { const v = $("#nickIn").value.trim(); if(!v) return; myNick = v; store.set(NICK_KEY, v); startChat(); };
+  $("#nickOk").onclick = ok;
+  $("#nickIn").onkeydown = e => { if(e.key === "Enter") ok(); };
+  setTimeout(() => $("#nickIn")?.focus(), 50);
+}
+
+function renderMsg(m){
+  const me = m.uid === myId;
+  const div = document.createElement("div");
+  div.className = "msg" + (me ? " me" : "");
+  let body = esc(m.text);
+  if(m.place) body += `<span class="share" data-place="${esc(m.place)}">지도에서 보기 →</span>`;
+  div.innerHTML = `${me ? "" : `<div class="who">${esc(m.nick)}</div>`}<div class="bubble">${body}</div><div class="time">${chatTime(m.ts)}</div>`;
+  return div;
+}
+
+function startChat(){
+  $("#chatMe").textContent = myNick ? `· ${myNick}` : "";
+  if(chatReady) { $("#chatForm").style.display = "flex"; return; }
+  if(!FIREBASE_CONFIG){ showSetup("채팅을 켜려면 <b>index.html</b> 위쪽의 <code>FIREBASE_CONFIG</code>에 Firebase 설정값을 넣어야 해요. 방법은 README에 있어요."); return; }
+  if(!window.firebase){ showSetup("채팅 서버(Firebase)를 불러오지 못했어요. 인터넷 연결을 확인해 주세요."); return; }
+  try{
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    chatRef = firebase.database().ref("lunchchat/messages");
+  }catch(err){ showSetup("채팅 연결 오류: " + esc(err.message)); return; }
+  chatReady = true;
+  $("#chatMsgs").innerHTML = `<div class="chat-empty" id="chatEmpty">아직 대화가 없어요.<br>"오늘 점심 뭐 드실래요?" 😋</div>`;
+  $("#chatForm").style.display = "flex";
+  const startedAt = Date.now();
+  chatRef.orderByChild("ts").limitToLast(100).on("child_added", snap => {
+    const m = snap.val(); if(!m || !m.text) return;
+    $("#chatEmpty")?.remove();
+    const box = $("#chatMsgs");
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    box.appendChild(renderMsg(m));
+    if(atBottom || m.uid === myId) box.scrollTop = box.scrollHeight;
+    if(!chatOpen && m.uid !== myId && m.ts > startedAt){ unread++; setBadge(); }
+  }, err => showSetup("채팅을 읽을 권한이 없어요. Firebase 데이터베이스 규칙을 확인해 주세요.<br><small>" + esc(err.message) + "</small>"));
+}
+
+function sendChat(text, place){
+  if(!chatRef || !text.trim()) return;
+  chatRef.push({uid: myId, nick: myNick, text: text.trim().slice(0, 300), place: place || null, ts: firebase.database.ServerValue.TIMESTAMP})
+    .catch(err => toast("전송 실패: " + err.message, 4000));
+}
+function shareToChat(p){
+  if(!FIREBASE_CONFIG){ toast("채팅이 아직 설정되지 않았어요"); return; }
+  if(!myNick){ openChat(); toast("먼저 채팅방 이름을 정해주세요"); return; }
+  if(!chatReady) startChat();
+  sendChat(`📍 ${p.name} 어때요? (${p.group} · ${p.category} · ${p.distance}m)`, p.id);
+  openChat();
+}
+function openChat(){
+  chatOpen = true; unread = 0; setBadge();
+  $("#chatPanel").classList.add("on");
+  if(!myNick) askNick(); else startChat();
+  setTimeout(() => { const b = $("#chatMsgs"); b.scrollTop = b.scrollHeight; $("#chatInput").focus(); }, 50);
+}
+function closeChat(){ chatOpen = false; $("#chatPanel").classList.remove("on"); }
+
+$("#chatFab").addEventListener("click", () => chatOpen ? closeChat() : openChat());
+$("#chatClose").addEventListener("click", closeChat);
+$("#chatForm").addEventListener("submit", e => { e.preventDefault(); sendChat($("#chatInput").value); $("#chatInput").value = ""; });
+$("#chatMsgs").addEventListener("click", e => {
+  const id = e.target.dataset.place; if(!id) return;
+  if(places.some(p => p.id === id)) openPlace(id, false); else toast("목록에 없는 가게예요");
+});
+// 이름이 이미 있으면 페이지를 열자마자 채팅을 연결해서 안 읽은 메시지 수를 보여줌
+if(myNick && FIREBASE_CONFIG) startChat();
+
+/* ───── 시작 ───── */
+render();
+initMap();
+</script>
+</body>
+</html>
