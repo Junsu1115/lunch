@@ -293,7 +293,8 @@ const MEALS = {
   dinner: {name: "저녁", budget: 15000, icon: "🌙"}
 };
 // 처음 열 때: 오후 3시 이후면 저녁 모드 (제목을 누르면 언제든 바꿀 수 있음)
-let meal = (() => { const s = (() => { try{ return sessionStorage.getItem("lunch.meal"); }catch(e){ return null; } })(); return s || (new Date().getHours() >= 15 ? "dinner" : "lunch"); })();
+const mealByClock = () => new Date().getHours() >= 15 ? "dinner" : "lunch";   // 오후 3시부터 저녁
+let meal = mealByClock();
 let closedEarly = {};   // 저녁 7시 전에 닫는다고 표시된 가게 (모두가 같이 봄)
 let gathers = {};       // 오늘의 '같이 가요' 모집 (자정에 날짜가 바뀌면 새로 시작)
 let ratings = {};       // 우리 회사 평가 {가게: {사람: {v, okLunch, okDinner, nick, ts}}}
@@ -1008,7 +1009,6 @@ function applyMeal(){
   // 저녁엔 영업시간을 볼 수 있게 탭 추가
   PICK_TABS = meal === "dinner" ? [...PICK_TABS_BASE, ["hours", "🕖 영업시간", "#home"]] : PICK_TABS_BASE;
   if(!PICK_TABS.some(x => x[0] === pickTab)) pickTab = "menu";
-  try{ sessionStorage.setItem("lunch.meal", meal); }catch(e){}
 }
 $("#mealToggle").addEventListener("click", () => {
   meal = meal === "lunch" ? "dinner" : "lunch";
@@ -1064,6 +1064,19 @@ function ratePlace(p, kind){
   db.ref(`lunchchat/ratings/${p.id}/${myId}`).set(mine).catch(err => toast("저장 실패: " + err.message, 4000));
 }
 applyMeal();
+// 페이지를 켜둔 채로 오후 3시가 되면 저녁으로, 자정이 지나면 점심으로 자동 전환
+let lastClockMeal = mealByClock();
+setInterval(() => {
+  const now = mealByClock();
+  if(now === lastClockMeal) return;
+  lastClockMeal = now;
+  if(meal !== now){
+    meal = now; applyMeal(); pickedId = null; selected = null;
+    if(info){ info.setMap(null); info = null; }
+    render();
+    toast(now === "dinner" ? "🌙 오후 3시예요! 저녁 뭐 먹지로 바꿨어요" : "☀️ 점심 뭐 먹지로 바꿨어요", 4000);
+  }
+}, 30000);
 
 /* ───── 시작 ───── */
 render();
