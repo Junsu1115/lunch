@@ -483,7 +483,13 @@ let isAdmin = false;
 const BAD_WORDS = ["씨발","시발","씨바","시바","씨빨","씨팔","시팔","쉬발","쓰발","ㅅㅂ","ㅆㅂ","ㅅ ㅂ","병신","븅신","빙신","ㅂㅅ","개새끼","개새기","개색기","개색끼","개쌔끼","새끼","새기야","지랄","ㅈㄹ","좆","존나","졸라","ㅈㄴ","엿먹","미친놈","미친년","미친새","또라이","꺼져","닥쳐","닥치","염병","썅","니미","느금","니애미","애미","애비","창녀","호로","fuck","shit","bitch","asshole","dick"];
 const SEP = "[\\s0-9._\\-~!@#$%^&*+=|/\\\\]*";
 const BAD_RE = new RegExp(BAD_WORDS.map(w => [...w.replace(/\s/g, "")].map(c => c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(SEP)).join("|"), "gi");
-const clean = s => String(s ?? "").replace(BAD_RE, m => "*".repeat([...m].length));
+// 성적인 표현
+const SEXUAL_WORDS = ["섹스","쎅스","섹쓰","쌕스","야동","야사","음란","자위","딸딸이","딸쳐","딸치","꼴린","꼴려","꼴리네","성교","강간","성폭행","따먹","떡치","떡쳐","떡칠","박고싶","박아줘","빨아줘","핥아","젖꼭지","유두","가슴만지","엉덩이만지","거시기","정액","사정해","발기","콘돔","오르가즘","신음","야한","벗겨","알몸","성인방","원나잇","sex","porn","pussy","cock","boobs","nude","horny","nsfw"];
+const SEXUAL_RE = new RegExp(SEXUAL_WORDS.map(w => [...w].map(c => c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(SEP)).join("|"), "gi");
+// '보지/자지'는 "보지 마", "자지 않아" 같은 평범한 말은 남기고 나머지만 가림
+const ORGAN_RE = new RegExp("(보|자)" + SEP + "지(?!" + SEP + "(마|말|않|못|도|요|만|는|가|를|\\?|$))", "g");
+const mask = m => "*".repeat([...m].length);
+const clean = s => String(s ?? "").replace(BAD_RE, mask).replace(SEXUAL_RE, mask).replace(ORGAN_RE, mask);
 const EMOJIS = ["😀","😂","🤣","😊","😍","🥰","😋","🤤","😎","🤔","😴","😭","😡","🥲","🙏","👍","👎","👏","🙌","🔥","💯","❤️","✨","🎉","🍚","🍜","🍲","🍛","🍣","🍱","🥟","🍝","🍕","🍔","🌮","🥗","🍗","🥩","🍤","🍙","🍳","🥘","☕","🧋","🍺","🏃","⏰","✅"];
 let db = null, fbReady = false, serverOffset = 0;
 let rooms = {}, view = "rooms", currentRoom = null, msgQuery = null, creating = false, pendingShare = null;
