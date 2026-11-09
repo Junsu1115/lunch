@@ -170,7 +170,7 @@ const store = {
 hidden = new Set(store.get(HIDDEN_KEY, []));
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const kakaoUrl = p => p.kakao_url || `https://place.map.kakao.com/${p.id}`;
+const kakaoUrl = p => `https://place.map.kakao.com/${p.id}`;   // https로 고정 (http는 사이트 안에서 막힘)
 const pickSrc = p => kakaoUrl(p) + (PICK_TABS.find(x => x[0] === pickTab) || PICK_TABS[0])[2];
 function toast(msg, ms = 2600){ const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), ms); }
 
