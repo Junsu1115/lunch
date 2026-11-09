@@ -75,7 +75,7 @@
   .chat-head small{color:#cfc8bf;font-size:12px}
   .chat-head button{margin-left:auto;background:transparent;border:0;color:#fff;font-size:20px;cursor:pointer;line-height:1}
   .chat-msgs{flex:1;overflow:auto;padding:12px;background:#f6f4ef;display:flex;flex-direction:column;gap:8px}
-  .msg{max-width:80%;display:flex;flex-direction:column;gap:2px}
+  .msg{max-width:80%;display:flex;flex-direction:column;gap:2px;align-self:flex-start;align-items:flex-start}
   .msg .who{font-size:12px;font-weight:700;color:#5c554b;padding:0 4px}
   .msg.me .who{color:var(--accent)}
   .msg .bubble{background:#fff;border-radius:14px 14px 14px 4px;padding:8px 11px;font-size:14px;line-height:1.45;word-break:break-word;box-shadow:0 1px 2px #0001}
@@ -566,7 +566,7 @@ function askNick(){
     if(/^\d{6,}$/.test(raw)){   // 숫자만 6자리 이상 → 관리자 비밀번호로 시도
       firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL, raw)
         .then(() => { isAdmin = true; if(!myNick){ myNick = "관리자"; store.set(NICK_KEY, myNick); } toast("관리자 모드로 들어왔어요"); showRooms(); })
-        .catch(() => toast("관리자 비밀번호가 맞지 않아요"));
+        .catch(err => toast(err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" ? "관리자 비밀번호가 맞지 않아요" : "관리자 로그인 실패: " + (err.code || err.message), 4000));
       return;
     }
     const v = clean(raw); myNick = v; store.set(NICK_KEY, v); showRooms();
@@ -588,7 +588,7 @@ function refreshRooms(){
   const list = liveRooms();
   const form = creating ? `<form class="newroom" id="newRoomForm"><input id="newRoomName" maxlength="20" placeholder="팀 이름 (예: 디자인팀 점심)"><button class="btn accent" type="submit">만들기</button><button class="btn ghost" type="button" data-c="cancel">취소</button></form>` : "";
   const items = list.map(([id, r]) => {
-    const isNew = r.lastUid && r.lastUid !== myId && r.lastAt > (seenAt[id] || 0);
+    const isNew = r.lastUid && !(r.lastUid === myId && r.lastNick === myNick) && r.lastAt > (seenAt[id] || 0);
     const last = r.lastText ? `${r.lastNick ? esc(clean(r.lastNick)) + ": " : ""}${esc(clean(r.lastText))}` : "아직 대화가 없어요";
     const nm = clean(r.name);
     return `<div class="room" data-room="${esc(id)}"><div class="av">${esc([...nm][0] || "팀")}</div>
@@ -613,13 +613,23 @@ function createRoom(name){
     .then(() => { creating = false; openRoom(ref.key); })
     .catch(err => toast("팀을 만들지 못했어요: " + err.message, 4000));
 }
-function deleteRoom(id){
-  const r = rooms[id]; if(!r || !isAdmin) return;
-  if(!confirm(`'${clean(r.name)}' 팀을 삭제할까요?\n대화 내용도 모두 지워지고 되돌릴 수 없어요.`)) return;
+let armedDelete = null, armedTimer = null;
+function deleteRoom(id, btn){
+  const r = rooms[id]; if(!r) return;
+  if(!isAdmin){ toast("관리자 모드에서만 삭제할 수 있어요"); return; }
+  if(armedDelete !== id){   // 첫 번째 클릭: 확인 상태로
+    armedDelete = id;
+    if(btn){ btn.dataset.label = btn.textContent; btn.textContent = "한 번 더 누르면 삭제"; }
+    clearTimeout(armedTimer);
+    armedTimer = setTimeout(() => { armedDelete = null; if(btn && btn.isConnected) btn.textContent = btn.dataset.label || "삭제"; }, 4000);
+    return;
+  }
+  armedDelete = null; clearTimeout(armedTimer);
+  if(btn) btn.textContent = "삭제 중…";
   db.ref("lunchchat/msgs/" + id).remove()
     .then(() => db.ref("lunchchat/rooms/" + id).remove())
-    .then(() => { toast("팀을 삭제했어요"); if(currentRoom === id) showRooms(); })
-    .catch(err => toast("삭제 실패: " + err.message, 4000));
+    .then(() => { toast(`'${clean(r.name)}' 팀을 삭제했어요`); if(currentRoom === id) showRooms(); })
+    .catch(err => { toast("삭제 실패: " + err.message, 5000); if(btn && btn.isConnected) btn.textContent = "삭제"; });
 }
 function openRoom(id){
   const r = rooms[id]; if(!r && !id) return;
@@ -644,7 +654,7 @@ function openRoom(id){
   setTimeout(() => $("#chatInput").focus(), 50);
 }
 function renderMsg(m){
-  const me = m.uid === myId;
+  const me = m.uid === myId && m.nick === myNick;   // 같은 기기에서 이름을 바꿔 쓰는 경우도 구분
   const div = document.createElement("div");
   div.className = "msg" + (me ? " me" : "");
   let body = esc(clean(m.text));
@@ -687,14 +697,14 @@ $("#chatHead").addEventListener("click", e => {
   else if(c === "back") showRooms();
   else if(c === "new"){ creating = true; refreshRooms(); }
   else if(c === "nick") askNick();
-  else if(c === "delroom" && currentRoom) deleteRoom(currentRoom);
+  else if(c === "delroom" && currentRoom) deleteRoom(currentRoom, e.target.closest("[data-c]"));
 });
 $("#roomsView").addEventListener("click", e => {
   const c = e.target.closest("[data-c]")?.dataset.c;
   if(c === "new"){ creating = true; refreshRooms(); return; }
   if(c === "cancel"){ creating = false; refreshRooms(); return; }
   if(c === "logout"){ firebase.auth().signOut().then(() => { isAdmin = false; toast("관리자 모드를 나왔어요"); showRooms(); }); return; }
-  const del = e.target.closest("[data-del]"); if(del){ deleteRoom(del.dataset.del); return; }
+  const del = e.target.closest("[data-del]"); if(del){ e.stopPropagation(); deleteRoom(del.dataset.del, del); return; }
   const r = e.target.closest(".room"); if(r) openRoom(r.dataset.room);
 });
 $("#chatForm").addEventListener("submit", e => { e.preventDefault(); sendChat($("#chatInput").value); $("#chatInput").value = ""; $("#emojiPop").classList.remove("on"); });
