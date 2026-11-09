@@ -490,13 +490,13 @@ function gatherSection(){
   if(!list.length) return "";
   return `<div class="gather"><div class="gather-h">🙋 오늘 같이 가요 <small>밤 12시에 초기화</small></div>` + list.map(([id, g]) => {
     const mem = g.members || {}, names = Object.values(mem), inIt = !!mem[myId];
-    const isHost = g.hostUid === myId;
+    const isHost = !!g.hostAuth && g.hostAuth === authUid();
     return `<div class="gitem" data-g="${esc(id)}">
       <div class="gt"><span class="gtime">${esc(g.time)}</span>${g.meal === "dinner" ? "🌙" : "☀️"} ${esc(clean(g.placeName))}</div>
       <div class="gm">${names.length}명 · ${names.map(n => esc(clean(n))).join(", ")}</div>
       <div class="gb"><button class="link join ${inIt ? "in" : ""}" data-gact="join">${inIt ? "빠지기" : "🙋 나도 갈래요"}</button>
         <button class="link" data-gact="view">가게 보기</button>
-        ${isHost ? `<span class="spacer"></span><button class="link" data-gact="cancel">모집 취소</button>` : ""}</div></div>`;
+        ${isHost || isAdmin ? `<span class="spacer"></span><button class="link" data-gact="cancel">${isHost ? "모집 취소" : "삭제(관리자)"}</button>` : ""}</div></div>`;
   }).join("") + `</div>`;
 }
 function renderTabs(){
@@ -649,7 +649,9 @@ $("#list").addEventListener("click", e => {
       if(!requireNick()) return;
       const ref = db.ref(`lunchchat/gather/${KST_DAY()}/${gid}/members/${myId}`);
       ((g.members || {})[myId] ? ref.remove() : ref.set(myNick)).catch(err => toast("실패: " + err.message, 4000));
-    }else if(act === "cancel") db.ref(`lunchchat/gather/${KST_DAY()}/${gid}`).remove().then(() => toast("모집을 취소했어요"));
+    }else if(act === "cancel") db.ref(`lunchchat/gather/${KST_DAY()}/${gid}`).remove()
+      .then(() => toast("모집을 취소했어요"))
+      .catch(() => toast("모집한 본인만 취소할 수 있어요", 3500));
     return;
   }
   const c = e.target.closest(".card"); if(!c) return;
@@ -737,6 +739,8 @@ function initFirebase(){
   db.ref(".info/serverTimeOffset").on("value", s => { serverOffset = s.val() || 0; });
   if(firebase.auth) firebase.auth().onAuthStateChanged(u => {
     isAdmin = !!u && u.uid === ADMIN_UID;
+    if(!u) firebase.auth().signInAnonymously().catch(() => {});
+    renderSoon();
     if(view === "rooms") showRooms(); else if(view === "room" && currentRoom) openRoom(currentRoom);
   });
   const roomsRef = db.ref("lunchchat/rooms");
@@ -1036,10 +1040,18 @@ function watchClosedEarly(){
   watchGather();
   setInterval(watchGather, 60000);   // 밤 12시가 지나면 새 날짜의 모집으로 자동 전환 (= 초기화)
 }
-function createGather(p, time){
+// 브라우저마다 보이지 않는 익명 계정으로 로그인 → 모집 취소를 '모집한 사람 본인'만 할 수 있게 서버가 확인
+function ensureAuth(){
+  if(!firebase.auth) return Promise.reject(new Error("로그인 모듈 없음"));
+  const u = firebase.auth().currentUser;
+  return u ? Promise.resolve(u) : firebase.auth().signInAnonymously().then(c => c.user);
+}
+const authUid = () => (firebase.auth && firebase.auth().currentUser || {}).uid;
+async function createGather(p, time){
   if(!requireNick() || !initFirebase()) return;
+  let user; try{ user = await ensureAuth(); }catch(err){ toast("로그인 실패: " + err.message, 4000); return; }
   const ref = db.ref("lunchchat/gather/" + KST_DAY()).push();
-  ref.set({placeId: p.id, placeName: p.name, time, meal, host: myNick, hostUid: myId,
+  ref.set({placeId: p.id, placeName: p.name, time, meal, host: myNick, hostUid: myId, hostAuth: user.uid,
            createdAt: firebase.database.ServerValue.TIMESTAMP, members: {[myId]: myNick}})
     .then(() => { gatherFormOpen = false; render(); $("#list").scrollTop = 0; toast(`🙋 ${time} ${p.name} 모집을 올렸어요`); })
     .catch(err => toast("모집 실패: " + err.message, 4000));
