@@ -114,6 +114,38 @@
   .admin-bar button{margin-left:auto;border:0;background:transparent;color:#c92a2a;text-decoration:underline;cursor:pointer;font:inherit;font-size:12px}
   .rooms-note{font-size:11px;color:#a8a097;text-align:center;padding:10px}
 
+  /* ───── 저녁 모드 (다크) ───── */
+  .meal-toggle{cursor:pointer;user-select:none}
+  .meal-toggle .hint{font-size:11px;font-weight:600;color:var(--muted);margin-left:6px;vertical-align:3px;border:1px solid var(--line);border-radius:999px;padding:2px 8px}
+  .budget{display:inline-block;font-size:12px;font-weight:700;color:var(--accent);background:#fff0e8;border-radius:999px;padding:2px 9px;margin-top:6px}
+  .link.ce{color:#9a6b00}
+  .link.ce.on{background:#5c3d00;color:#ffd27a;border-color:#5c3d00}
+  body.dinner{--bg:#14161b;--ink:#ebe7e1;--muted:#98a0ab;--line:#2c3139;--card:#1d2027;--accent:#ff8c4d;color-scheme:dark}
+  body.dinner header, body.dinner .tab, body.dinner .link, body.dinner select, body.dinner input[type=text],
+  body.dinner .pickbox, body.dinner .ptab, body.dinner .pickfoot, body.dinner .chat-panel, body.dinner .rooms,
+  body.dinner .room, body.dinner .emoji-pop, body.dinner .iwbox, body.dinner .chat-form{background:#1d2027;color:var(--ink);border-color:var(--line)}
+  body.dinner .btn{background:#e9e5df;color:#14161b}
+  body.dinner .btn.accent{background:var(--accent);color:#fff}
+  body.dinner .btn.ghost{background:#2a2e36;color:var(--ink)}
+  body.dinner .tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  body.dinner .card:hover{border-color:#454b55}
+  body.dinner .pickhead, body.dinner .newroom{background:#2a2219}
+  body.dinner .ptab.on{color:#fff}
+  body.dinner .budget{background:#3a2618}
+  body.dinner .chat-msgs{background:#14161b}
+  body.dinner .msg .bubble{background:#2a2e36;color:var(--ink)}
+  body.dinner .msg.me .bubble{background:var(--accent);color:#fff}
+  body.dinner .msg .who{color:#c4bdb4}
+  body.dinner .room:hover{background:#252931}
+  body.dinner .room .av{background:#3a2618}
+  body.dinner .chat-form input, body.dinner .newroom input{background:#14161b;color:var(--ink);border-color:var(--line)}
+  body.dinner .chat-head{background:#0d0f12}
+  body.dinner .company-pin{background:#ff8c4d}
+  body.dinner #map{filter:brightness(.78) contrast(1.05)}
+  body.dinner .pickframe{background:#14161b}
+  body.dinner .link.k{background:#fee500;color:#191600}
+  body.dinner .toast{background:#e9e5df;color:#14161b}
+
   @media (max-width: 760px){
     .app{flex-direction:column;height:auto;min-height:100vh}
     #map{flex:none;height:45vh}
@@ -129,8 +161,9 @@
     <button class="btn home-btn" id="homeBtn" title="회사 위치로">🏢 회사로</button></div>
   <aside>
     <header>
-      <h1>점심 <b>뭐 먹지?</b></h1>
+      <h1 class="meal-toggle" id="mealToggle" title="눌러서 점심/저녁 바꾸기"><span id="mealName">점심</span> <b>뭐 먹지?</b><span class="hint" id="mealHint">🌙 저녁으로</span></h1>
       <div class="sub" id="sub">-</div>
+      <div class="budget" id="budget"></div>
       <div class="ctrl">
         <select id="sort">
           <option value="distance">가까운 순</option>
@@ -192,7 +225,15 @@ const FIREBASE_CONFIG = {
 /* ════════════════════════════════ */
 
 const GROUPS = {"한식": "#e8590c", "분식": "#d6336c", "양식": "#1971c2", "중식": "#c92a2a", "일식": "#2b8a3e", "기타": "#868e96"};
-const PICK_TABS = [["menu", "🍽 메뉴/가격", "#menuInfo"], ["photo", "📷 사진", "#photoview"], ["review", "💬 후기", "#review"]];
+const MEALS = {
+  lunch:  {name: "점심", budget: 11000, icon: "☀️"},
+  dinner: {name: "저녁", budget: 15000, icon: "🌙"}
+};
+// 처음 열 때: 오후 3시 이후면 저녁 모드 (제목을 누르면 언제든 바꿀 수 있음)
+let meal = (() => { const s = (() => { try{ return sessionStorage.getItem("lunch.meal"); }catch(e){ return null; } })(); return s || (new Date().getHours() >= 15 ? "dinner" : "lunch"); })();
+let closedEarly = {};   // 저녁 7시 전에 닫는다고 표시된 가게 (모두가 같이 봄)
+const PICK_TABS_BASE = [["menu", "🍽 메뉴/가격", "#menuInfo"], ["photo", "📷 사진", "#photoview"], ["review", "💬 후기", "#review"]];
+let PICK_TABS = PICK_TABS_BASE;
 const CACHE_KEY = "lunch.places.v1", HIDDEN_KEY = "lunch.hidden", NICK_KEY = "lunch.nick";
 const $ = s => document.querySelector(s);
 
@@ -287,6 +328,7 @@ function visible(){
   const q = $("#q").value.trim(), withHidden = $("#showHidden").checked;
   const arr = places.filter(p => {
     if(hidden.has(p.id) && !withHidden) return false;
+    if(meal === "dinner" && closedEarly[p.id] && !withHidden) return false;
     if(group !== "전체" && p.group !== group) return false;
     if(q && !(p.name + " " + p.category_full).includes(q)) return false;
     return true;
@@ -303,14 +345,15 @@ function card(p){
       <div class="dist">${p.distance}m</div>
     </div>
     <div class="meta">${esc(p.category)} · ${esc(p.road_address || p.address)}</div>
-    <div class="row"><span class="spacer"></span><button class="link" data-act="hide">${h ? "다시 보기" : "숨기기"}</button></div>
+    <div class="row">${meal === "dinner" ? `<button class="link ce ${closedEarly[p.id] ? "on" : ""}" data-act="ce">${closedEarly[p.id] ? "🌙 7시 전 마감 (취소)" : "🌙 7시 전에 닫아요"}</button>` : ""}
+      <span class="spacer"></span><button class="link" data-act="hide">${h ? "다시 보기" : "숨기기"}</button></div>
   </div>`;
 }
 function pickPanel(){
   const p = places.find(x => x.id === pickedId);
   if(!p) return "";
   return `<div class="pickbox" id="pickbox">
-    <div class="pickhead"><div style="flex:1"><div class="t">${pickByDice ? "🎲 오늘의 점심" : "📍 선택한 가게"}</div>
+    <div class="pickhead"><div style="flex:1"><div class="t">${pickByDice ? "🎲 오늘의 " + MEALS[meal].name : "📍 선택한 가게"}</div>
       <div class="n"><span class="gtag" style="background:${GROUPS[p.group] || "#868e96"}">${esc(p.group)}</span>${esc(p.name)}</div>
       <div class="meta">${esc(p.category)} · ${p.distance}m</div></div></div>
     <div class="ptabs">${PICK_TABS.map(([k, label]) => `<button class="ptab ${k === pickTab ? "on" : ""}" data-ptab="${k}">${label}</button>`).join("")}</div>
@@ -336,6 +379,8 @@ function renderTabs(){
 }
 function render(){
   $("#sub").textContent = `${COMPANY.address} 반경 ${RADIUS}m${updatedAt ? " · " + updatedAt + " 기준" : ""}`;
+  const ceCount = Object.keys(closedEarly).length;
+  $("#budget").textContent = `${MEALS[meal].icon} ${MEALS[meal].name} 식대 ${MEALS[meal].budget.toLocaleString()}원` + (meal === "dinner" && ceCount ? ` · 7시 전 마감 ${ceCount}곳 제외` : "");
   renderTabs();
   const arr = visible();
   $("#count").textContent = places.length ? `${arr.length}곳 표시 중` : "";
@@ -452,6 +497,14 @@ $("#list").addEventListener("click", e => {
   }
   const c = e.target.closest(".card"); if(!c) return;
   const id = c.dataset.id;
+  if(e.target.dataset.act === "ce"){
+    if(!initFirebase()){ toast("저장 서버에 연결할 수 없어요"); return; }
+    const ref = db.ref("lunchchat/closedEarly/" + id);
+    (closedEarly[id] ? ref.remove() : ref.set(true))
+      .then(() => toast(closedEarly[id] ? "저녁 목록에서 뺐어요 (다른 사람들에게도 적용)" : "다시 저녁 목록에 넣었어요"))
+      .catch(err => toast("저장 실패: " + err.message, 4000));
+    return;
+  }
   if(e.target.dataset.act === "hide"){
     hidden.has(id) ? hidden.delete(id) : hidden.add(id);
     store.set(HIDDEN_KEY, [...hidden]); render(); return;
@@ -465,7 +518,7 @@ $("#pick").addEventListener("click", () => {
   if(!from.length){ toast("뽑을 식당이 없어요"); return; }
   const p = from[Math.floor(Math.random() * from.length)];
   openPlace(p.id, true);
-  toast(`오늘은 ${p.name}!`, 3000);
+  toast(`오늘 ${MEALS[meal].name}은 ${p.name}!`, 3000);
 });
 $("#refresh").addEventListener("click", () => loadPlaces(true));
 
@@ -730,9 +783,36 @@ setInterval(() => { if(view === "rooms" && chatOpen) refreshRooms(); else setBad
 // 페이지를 열자마자 연결해서 새 대화가 있는 팀 수를 배지로 보여줌
 if(FIREBASE_CONFIG) initFirebase();
 
+/* ───── 점심 / 저녁 전환 ───── */
+function applyMeal(){
+  const m = MEALS[meal];
+  document.body.classList.toggle("dinner", meal === "dinner");
+  $("#mealName").textContent = m.name;
+  $("#mealHint").textContent = meal === "dinner" ? "☀️ 점심으로" : "🌙 저녁으로";
+  document.title = `${m.name} 뭐 먹지?`;
+  $("#pick").textContent = "🎲 이 중에서 뽑기";
+  // 저녁엔 영업시간을 볼 수 있게 탭 추가
+  PICK_TABS = meal === "dinner" ? [...PICK_TABS_BASE, ["hours", "🕖 영업시간", "#home"]] : PICK_TABS_BASE;
+  if(!PICK_TABS.some(x => x[0] === pickTab)) pickTab = "menu";
+  try{ sessionStorage.setItem("lunch.meal", meal); }catch(e){}
+}
+$("#mealToggle").addEventListener("click", () => {
+  meal = meal === "lunch" ? "dinner" : "lunch";
+  applyMeal(); pickedId = null; selected = null;
+  if(info){ info.setMap(null); info = null; }
+  render();
+  toast(`${MEALS[meal].icon} ${MEALS[meal].name} 모드 · 식대 ${MEALS[meal].budget.toLocaleString()}원`);
+});
+function watchClosedEarly(){
+  if(!initFirebase()) return;
+  db.ref("lunchchat/closedEarly").on("value", s => { closedEarly = s.val() || {}; render(); });
+}
+applyMeal();
+
 /* ───── 시작 ───── */
 render();
 initMap();
+watchClosedEarly();
 </script>
 </body>
 </html>
