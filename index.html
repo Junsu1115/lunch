@@ -171,6 +171,11 @@
   .meal-toggle .hint{font-size:11px;font-weight:600;color:var(--muted);margin-left:6px;vertical-align:3px;border:1px solid var(--line);border-radius:999px;padding:2px 8px}
   .budget{display:inline-block;font-size:12px;font-weight:700;color:var(--accent);background:#fff0e8;border-radius:999px;padding:2px 9px;margin-top:6px}
   .link.ce{color:#9a6b00}
+  .undo{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 10px 9px 16px;border-radius:10px;font-size:13px;display:none;align-items:center;gap:10px;z-index:61;box-shadow:0 4px 14px #0004}
+  .undo.on{display:flex}
+  .undo button{border:0;background:var(--accent);color:#fff;font:inherit;font-weight:700;border-radius:7px;padding:5px 10px;cursor:pointer}
+  .budget .ceview{border:0;background:transparent;color:inherit;font:inherit;font-weight:800;text-decoration:underline;cursor:pointer;padding:0;margin-left:2px}
+  body.dinner .undo{background:#e9e5df;color:#14161b}
   .link.ce.on{background:#5c3d00;color:#ffd27a;border-color:#5c3d00}
   body.dinner{--bg:#14161b;--ink:#ebe7e1;--muted:#98a0ab;--line:#2c3139;--card:#1d2027;--accent:#ff8c4d;color-scheme:dark}
   body.dinner header, body.dinner .tab, body.dinner .link, body.dinner select, body.dinner input[type=text],
@@ -264,6 +269,7 @@
   </form>
 </div>
 <div class="toast" id="toast"></div>
+<div class="undo" id="undo"><span id="undoText"></span><button id="undoBtn">되돌리기</button></div>
 
 <!-- Firebase (채팅용) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -301,6 +307,7 @@ let ratings = {};       // 우리 회사 평가 {가게: {사람: {v, okLunch, o
 let visits = {};        // 최근 간 곳 {가게: {ts, nick}}
 let pollDraft = [];     // 투표 후보 (가게 id)
 let gatherFormOpen = false;
+let showCE = false;     // 저녁: '7시 전 마감' 표시한 가게만 모아 보기
 const KST_DAY = () => new Date((typeof nowMs === "function" ? nowMs() : Date.now()) + 9 * 3600 * 1000).toISOString().slice(0, 10);
 const walkMin = d => Math.max(1, Math.round(d * 1.3 / 67));   // 직선거리 × 1.3(골목) ÷ 분당 67m
 function rateStats(id){
@@ -410,6 +417,7 @@ function visible(){
   const q = $("#q").value.trim(), withHidden = $("#showHidden").checked;
   const arr = places.filter(p => {
     if(hidden.has(p.id) && !withHidden) return false;
+    if(meal === "dinner" && showCE) return !!closedEarly[p.id];
     if(meal === "dinner" && closedEarly[p.id] && !withHidden) return false;
     if($("#okOnly").checked && !rateStats(p.id).okMajority) return false;
     if(group !== "전체" && p.group !== group) return false;
@@ -439,7 +447,7 @@ function card(p){
     </div>
     <div class="meta">${esc(p.category)} · ${esc(p.road_address || p.address)}</div>
     ${cardTags(p)}
-    <div class="row">${meal === "dinner" ? `<button class="link ce ${closedEarly[p.id] ? "on" : ""}" data-act="ce">${closedEarly[p.id] ? "🌙 7시 전 마감 (취소)" : "🌙 7시 전에 닫아요"}</button>` : ""}
+    <div class="row">${meal === "dinner" ? `<button class="link ce ${closedEarly[p.id] ? "on" : ""}" data-act="ce">${closedEarly[p.id] ? "↩ 7시 전 마감 취소" : "🌙 7시 전에 닫아요"}</button>` : ""}
       <span class="spacer"></span><button class="link" data-act="hide">${h ? "다시 보기" : "숨기기"}</button></div>
   </div>`;
 }
@@ -513,7 +521,9 @@ function render(){
   $("#sub").textContent = `${COMPANY.address} 반경 ${RADIUS}m${updatedAt ? " · " + updatedAt + " 기준" : ""}`;
   const ceCount = Object.keys(closedEarly).length;
   $("#okLabel").textContent = `💰 ${MEALS[meal].budget.toLocaleString()}원 이하만`;
-  $("#budget").textContent = `${MEALS[meal].icon} ${MEALS[meal].name} 식대 ${MEALS[meal].budget.toLocaleString()}원` + (meal === "dinner" && ceCount ? ` · 7시 전 마감 ${ceCount}곳 제외` : "");
+  if(!ceCount) showCE = false;
+  $("#budget").innerHTML = `${MEALS[meal].icon} ${MEALS[meal].name} 식대 ${MEALS[meal].budget.toLocaleString()}원` +
+    (meal === "dinner" && ceCount ? ` · 7시 전 마감 ${ceCount}곳 제외 <button class="ceview" id="ceView">${showCE ? "목록으로 돌아가기" : "보기·취소"}</button>` : "");
   renderTabs();
   const arr = visible();
   $("#count").textContent = places.length ? `${arr.length}곳 표시 중` : "";
@@ -661,10 +671,14 @@ $("#list").addEventListener("click", e => {
   const id = c.dataset.id;
   if(e.target.dataset.act === "ce"){
     if(!initFirebase()){ toast("저장 서버에 연결할 수 없어요"); return; }
-    const ref = db.ref("lunchchat/closedEarly/" + id);
-    (closedEarly[id] ? ref.remove() : ref.set(true))
-      .then(() => toast(closedEarly[id] ? "저녁 목록에서 뺐어요 (다른 사람들에게도 적용)" : "다시 저녁 목록에 넣었어요"))
-      .catch(err => toast("저장 실패: " + err.message, 4000));
+    const ref = db.ref("lunchchat/closedEarly/" + id), name = (places.find(x => x.id === id) || {}).name || "";
+    if(closedEarly[id]){
+      ref.remove().then(() => toast(`'${name}' 다시 저녁 목록에 넣었어요`)).catch(err => toast("저장 실패: " + err.message, 4000));
+    }else{
+      ref.set(true)
+        .then(() => showUndo(`🌙 '${name}' 저녁 목록에서 뺐어요`, () => ref.remove().then(() => toast("되돌렸어요"))))
+        .catch(err => toast("저장 실패: " + err.message, 4000));
+    }
     return;
   }
   if(e.target.dataset.act === "hide"){
@@ -1017,7 +1031,19 @@ function applyMeal(){
   PICK_TABS = meal === "dinner" ? [...PICK_TABS_BASE, ["hours", "🕖 영업시간", "#home"]] : PICK_TABS_BASE;
   if(!PICK_TABS.some(x => x[0] === pickTab)) pickTab = "menu";
 }
+$("#budget").addEventListener("click", e => {
+  if(e.target.id !== "ceView") return;
+  showCE = !showCE; pickedId = null; render(); $("#list").scrollTop = 0;
+  if(showCE) toast("7시 전 마감으로 표시된 가게예요. '취소'를 누르면 저녁 목록에 다시 나와요", 3500);
+});
+let undoTimer = null;
+function showUndo(text, fn){
+  $("#undoText").textContent = text; $("#undo").classList.add("on");
+  $("#undoBtn").onclick = () => { $("#undo").classList.remove("on"); clearTimeout(undoTimer); fn(); };
+  clearTimeout(undoTimer); undoTimer = setTimeout(() => $("#undo").classList.remove("on"), 7000);
+}
 $("#mealToggle").addEventListener("click", () => {
+  showCE = false;
   meal = meal === "lunch" ? "dinner" : "lunch";
   applyMeal(); pickedId = null; selected = null;
   if(info){ info.setMap(null); info = null; }
