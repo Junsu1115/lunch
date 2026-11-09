@@ -103,6 +103,11 @@
   .newroom{display:flex;gap:6px;padding:10px 12px;background:#fff4ee;border-bottom:1px solid var(--line)}
   .newroom input{flex:1;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
   .rooms-empty{text-align:center;color:var(--muted);font-size:13px;line-height:1.8;padding:60px 20px}
+  .emoji-btn{border:0;background:transparent;font-size:22px;cursor:pointer;padding:0 2px;line-height:1}
+  .emoji-pop{display:none;grid-template-columns:repeat(8,1fr);gap:2px;padding:8px;border-top:1px solid var(--line);background:#fff;max-height:150px;overflow:auto}
+  .emoji-pop.on{display:grid}
+  .emoji-pop button{border:0;background:transparent;font-size:22px;cursor:pointer;border-radius:8px;padding:4px 0}
+  .emoji-pop button:hover{background:#f1ede6}
   .rooms-note{font-size:11px;color:#a8a097;text-align:center;padding:10px}
 
   @media (max-width: 760px){
@@ -151,7 +156,9 @@
   <div class="chat-head" id="chatHead"></div>
   <div class="rooms" id="roomsView"></div>
   <div class="chat-msgs" id="chatMsgs" style="display:none"></div>
+  <div class="emoji-pop" id="emojiPop"></div>
   <form class="chat-form" id="chatForm" autocomplete="off" style="display:none">
+    <button type="button" class="emoji-btn" id="emojiBtn" aria-label="이모지">😊</button>
     <input id="chatInput" maxlength="300" placeholder="메시지 입력">
     <button type="submit">보내기</button>
   </form>
@@ -447,6 +454,13 @@ $("#refresh").addEventListener("click", () => loadPlaces(true));
    lunchchat/msgs/{방}/{메시지} : {uid, nick, text, ts, place}
    마지막 대화(lastAt)로부터 하루가 지난 방은 누가 사이트를 열 때 자동 삭제돼요. */
 const DAY = 24 * 3600 * 1000;
+
+/* ── 욕설 가리기: 보낼 때와 보여줄 때 모두 *** 로 바꿈 ── */
+const BAD_WORDS = ["씨발","시발","씨바","시바","씨빨","씨팔","시팔","쉬발","쓰발","ㅅㅂ","ㅆㅂ","ㅅ ㅂ","병신","븅신","빙신","ㅂㅅ","개새끼","개새기","개색기","개색끼","개쌔끼","새끼","새기야","지랄","ㅈㄹ","좆","존나","졸라","ㅈㄴ","엿먹","미친놈","미친년","미친새","또라이","꺼져","닥쳐","닥치","염병","썅","니미","느금","니애미","애미","애비","창녀","호로","fuck","shit","bitch","asshole","dick"];
+const SEP = "[\\s0-9._\\-~!@#$%^&*+=|/\\\\]*";
+const BAD_RE = new RegExp(BAD_WORDS.map(w => [...w.replace(/\s/g, "")].map(c => c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(SEP)).join("|"), "gi");
+const clean = s => String(s ?? "").replace(BAD_RE, m => "*".repeat([...m].length));
+const EMOJIS = ["😀","😂","🤣","😊","😍","🥰","😋","🤤","😎","🤔","😴","😭","😡","🥲","🙏","👍","👎","👏","🙌","🔥","💯","❤️","✨","🎉","🍚","🍜","🍲","🍛","🍣","🍱","🥟","🍝","🍕","🍔","🌮","🥗","🍗","🥩","🍤","🍙","🍳","🥘","☕","🧋","🍺","🏃","⏰","✅"];
 let db = null, fbReady = false, serverOffset = 0;
 let rooms = {}, view = "rooms", currentRoom = null, msgQuery = null, creating = false, pendingShare = null;
 let chatOpen = false, unread = 0, myNick = store.get(NICK_KEY, "");
@@ -503,6 +517,7 @@ function liveRooms(){
 /* ── 화면 그리기 ── */
 function head(html){ $("#chatHead").innerHTML = html; }
 function showOnly(which){
+  $("#emojiPop").classList.remove("on");
   $("#roomsView").style.display = which === "rooms" ? "block" : "none";
   $("#chatMsgs").style.display = which === "rooms" ? "none" : "flex";
   $("#chatForm").style.display = which === "room" ? "flex" : "none";
@@ -518,7 +533,7 @@ function askNick(){
   $("#chatMsgs").innerHTML = `<div class="chat-empty">채팅에서 쓸 이름을 정해주세요<br><br>
     <input id="nickIn" maxlength="12" placeholder="예: 디자인팀 준" value="${esc(myNick)}" style="font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:10px;width:200px"><br><br>
     <button class="btn accent" id="nickOk">확인</button></div>`;
-  const ok = () => { const v = $("#nickIn").value.trim(); if(!v) return; myNick = v; store.set(NICK_KEY, v); showRooms(); };
+  const ok = () => { const v = clean($("#nickIn").value.trim()); if(!v) return; myNick = v; store.set(NICK_KEY, v); showRooms(); };
   $("#nickOk").onclick = ok;
   $("#nickIn").onkeydown = e => { if(e.key === "Enter") ok(); };
   setTimeout(() => $("#nickIn")?.focus(), 50);
@@ -537,9 +552,10 @@ function refreshRooms(){
   const form = creating ? `<form class="newroom" id="newRoomForm"><input id="newRoomName" maxlength="20" placeholder="팀 이름 (예: 디자인팀 점심)"><button class="btn accent" type="submit">만들기</button><button class="btn ghost" type="button" data-c="cancel">취소</button></form>` : "";
   const items = list.map(([id, r]) => {
     const isNew = r.lastUid && r.lastUid !== myId && r.lastAt > (seenAt[id] || 0);
-    const last = r.lastText ? `${r.lastNick ? esc(r.lastNick) + ": " : ""}${esc(r.lastText)}` : "아직 대화가 없어요";
-    return `<div class="room" data-room="${esc(id)}"><div class="av">${esc([...r.name][0] || "팀")}</div>
-      <div class="rb"><div class="rn">${esc(r.name)}</div><div class="rl">${last}</div></div>
+    const last = r.lastText ? `${r.lastNick ? esc(clean(r.lastNick)) + ": " : ""}${esc(clean(r.lastText))}` : "아직 대화가 없어요";
+    const nm = clean(r.name);
+    return `<div class="room" data-room="${esc(id)}"><div class="av">${esc([...nm][0] || "팀")}</div>
+      <div class="rb"><div class="rn">${esc(nm)}</div><div class="rl">${last}</div></div>
       ${isNew ? '<span class="dot"></span>' : ""}<div class="rt">${ago(r.lastAt)}</div></div>`;
   }).join("");
   $("#roomsView").innerHTML = form + (items
@@ -551,7 +567,7 @@ function refreshRooms(){
   }
 }
 function createRoom(name){
-  name = name.trim().slice(0, 20); if(!name) return;
+  name = clean(name.trim().slice(0, 20)); if(!name) return;
   const ref = db.ref("lunchchat/rooms").push();
   const ts = firebase.database.ServerValue.TIMESTAMP;
   ref.set({name, createdAt: ts, createdBy: myNick, lastAt: ts, lastText: "", lastNick: "", lastUid: ""})
@@ -562,7 +578,7 @@ function openRoom(id){
   const r = rooms[id]; if(!r && !id) return;
   if(msgQuery){ msgQuery.off(); msgQuery = null; }
   view = "room"; currentRoom = id; showOnly("room");
-  head(`<button class="back" data-c="back" aria-label="팀 목록">‹</button><b>${esc((rooms[id] || {}).name || "팀")}</b><button class="x" data-c="close" aria-label="닫기" style="margin-left:auto">×</button>`);
+  head(`<button class="back" data-c="back" aria-label="팀 목록">‹</button><b>${esc(clean((rooms[id] || {}).name || "팀"))}</b><button class="x" data-c="close" aria-label="닫기" style="margin-left:auto">×</button>`);
   $("#chatMsgs").innerHTML = `<div class="chat-empty" id="chatEmpty">첫 메시지를 남겨보세요 😋<br>"오늘 점심 뭐 드실래요?"</div>`;
   msgQuery = db.ref("lunchchat/msgs/" + id).orderByChild("ts").limitToLast(100);
   msgQuery.on("child_added", snap => {
@@ -582,13 +598,13 @@ function renderMsg(m){
   const me = m.uid === myId;
   const div = document.createElement("div");
   div.className = "msg" + (me ? " me" : "");
-  let body = esc(m.text);
+  let body = esc(clean(m.text));
   if(m.place) body += `<span class="share" data-place="${esc(m.place)}">지도에서 보기 →</span>`;
-  div.innerHTML = `${me ? "" : `<div class="who">${esc(m.nick)}</div>`}<div class="bubble">${body}</div><div class="time">${chatTime(m.ts)}</div>`;
+  div.innerHTML = `${me ? "" : `<div class="who">${esc(clean(m.nick))}</div>`}<div class="bubble">${body}</div><div class="time">${chatTime(m.ts)}</div>`;
   return div;
 }
 function sendChat(text, place){
-  text = (text || "").trim().slice(0, 300);
+  text = clean((text || "").trim().slice(0, 300));
   if(!db || !currentRoom || !text) return;
   const ts = firebase.database.ServerValue.TIMESTAMP, id = currentRoom;
   db.ref("lunchchat/msgs/" + id).push({uid: myId, nick: myNick, text, place: place || null, ts})
@@ -629,7 +645,15 @@ $("#roomsView").addEventListener("click", e => {
   if(c === "cancel"){ creating = false; refreshRooms(); return; }
   const r = e.target.closest(".room"); if(r) openRoom(r.dataset.room);
 });
-$("#chatForm").addEventListener("submit", e => { e.preventDefault(); sendChat($("#chatInput").value); $("#chatInput").value = ""; });
+$("#chatForm").addEventListener("submit", e => { e.preventDefault(); sendChat($("#chatInput").value); $("#chatInput").value = ""; $("#emojiPop").classList.remove("on"); });
+$("#emojiPop").innerHTML = EMOJIS.map(e => `<button type="button">${e}</button>`).join("");
+$("#emojiBtn").addEventListener("click", () => $("#emojiPop").classList.toggle("on"));
+$("#emojiPop").addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return;
+  const inp = $("#chatInput"), s = inp.selectionStart ?? inp.value.length, en = inp.selectionEnd ?? inp.value.length;
+  inp.value = inp.value.slice(0, s) + b.textContent + inp.value.slice(en);
+  const pos = s + b.textContent.length; inp.focus(); inp.setSelectionRange(pos, pos);
+});
 $("#chatMsgs").addEventListener("click", e => {
   const id = e.target.dataset.place; if(!id) return;
   if(places.some(p => p.id === id)) openPlace(id, false); else toast("목록에 없는 가게예요");
