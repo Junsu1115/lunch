@@ -452,7 +452,7 @@ function pickActions(p){
   const mine = (ratings[p.id] || {})[myId] || {}, s = rateStats(p.id), key = meal === "dinner" ? "okDinner" : "okLunch";
   const v = visits[p.id], d = v ? daysAgo(v.ts) : null;
   const slots = timeSlots(), now = new Date(), cur = now.getHours() * 60 + now.getMinutes();
-  const def = slots.find(x => { const [h, m] = x.split(":").map(Number); return h * 60 + m >= cur + 10; }) || slots[0];
+  const def = slots.find(x => { const [h, m] = x.split(":").map(Number); return h * 60 + m >= cur + 10; }) || (meal === "dinner" ? "18:30" : "12:00");
   return `<div class="actions">
       <button class="link" data-pick="gather" style="background:#4c6ef5;color:#fff;border-color:#4c6ef5;font-weight:700">🙋 같이 갈 사람 모집</button>
       <button class="link up ${mine.v === 1 ? "on" : ""}" data-rate="up">👍 ${s.up}</button>
