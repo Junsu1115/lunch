@@ -114,6 +114,58 @@
   .admin-bar button{margin-left:auto;border:0;background:transparent;color:#c92a2a;text-decoration:underline;cursor:pointer;font:inherit;font-size:12px}
   .rooms-note{font-size:11px;color:#a8a097;text-align:center;padding:10px}
 
+  /* ───── 같이 가요 / 평가 / 투표 ───── */
+  .gather{background:#fff;border:2px solid #4c6ef5;border-radius:14px;margin-bottom:10px;overflow:hidden}
+  .gather-h{display:flex;align-items:center;gap:6px;padding:9px 12px;background:#edf2ff;color:#364fc7;font-weight:800;font-size:13px}
+  .gather-h small{font-weight:600;color:#5c7cfa;margin-left:auto;font-size:11px}
+  .gitem{padding:10px 12px;border-top:1px solid #e7ecff}
+  .gitem .gt{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700}
+  .gitem .gtime{font-size:12px;font-weight:800;color:#fff;background:#4c6ef5;border-radius:6px;padding:1px 7px}
+  .gitem .gm{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
+  .gitem .gb{display:flex;gap:6px;margin-top:7px}
+  .gitem .join{background:#4c6ef5;color:#fff;border-color:#4c6ef5;font-weight:700}
+  .gitem .join.in{background:#fff;color:#4c6ef5}
+  .actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .actions .link{padding:4px 8px}
+  .actions .link.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .actions .link.up.on{background:#2b8a3e;border-color:#2b8a3e}
+  .actions .link.down.on{background:#c92a2a;border-color:#c92a2a}
+  .actions .link.ok.on{background:#e67700;border-color:#e67700}
+  .gform{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;font-size:13px}
+  .gform select{padding:5px 8px}
+  .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  .tagx{font-size:11px;border-radius:6px;padding:2px 7px;background:#f1ede6;color:#5c554b;font-weight:600}
+  .tagx.ok{background:#fff3bf;color:#a15c00}
+  .tagx.vis{background:#e7f5ff;color:#1864ab}
+  .tagx.gath{background:#edf2ff;color:#364fc7}
+  .walk{font-weight:700;color:var(--ink)}
+  .poll{min-width:210px}
+  .poll .pq{font-weight:800;margin-bottom:6px}
+  .poll .pq small{font-weight:600;opacity:.8;margin-left:4px}
+  .popt{display:block;width:100%;text-align:left;border:1px solid #0001;background:#0000000a;border-radius:9px;padding:6px 8px;margin-top:5px;cursor:pointer;font:inherit;font-size:13px;color:inherit;position:relative;overflow:hidden}
+  .popt .bar{position:absolute;left:0;top:0;bottom:0;background:#ff6b3533;z-index:0}
+  .popt span{position:relative;z-index:1}
+  .popt .cnt{float:right;font-weight:800}
+  .popt.mine{border-color:var(--accent);font-weight:700}
+  .popt.win{border-color:#2b8a3e;background:#ebfbee;color:#2b8a3e;font-weight:800}
+  .msg.me .popt{border-color:#fff6}
+  .poll-pop{display:none;flex-direction:column;gap:6px;padding:10px;border-top:1px solid var(--line);background:#fff;max-height:260px;overflow:auto}
+  .poll-pop.on{display:flex}
+  .poll-pop input,.poll-pop select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+  .poll-res button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:5px 6px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px}
+  .poll-res button:hover{background:#f1ede6}
+  .chips{display:flex;flex-wrap:wrap;gap:4px}
+  .chip{font-size:12px;background:#fff0e8;color:#d9480f;border-radius:999px;padding:3px 9px;cursor:pointer}
+  body.dinner .gather, body.dinner .poll-pop{background:#1d2027;color:var(--ink)}
+  body.dinner .gather-h{background:#1f2747;color:#bac8ff}
+  body.dinner .gitem{border-color:#2c3139}
+  body.dinner .tagx{background:#2a2e36;color:#c4bdb4}
+  body.dinner .tagx.ok{background:#3d2e00;color:#ffd43b}
+  body.dinner .tagx.vis{background:#11293d;color:#74c0fc}
+  body.dinner .tagx.gath{background:#1f2747;color:#bac8ff}
+  body.dinner .popt.win{background:#12301b;color:#8ce99a}
+  body.dinner .gitem .join.in{background:#1d2027}
+
   /* ───── 저녁 모드 (다크) ───── */
   .meal-toggle{cursor:pointer;user-select:none}
   .meal-toggle .hint{font-size:11px;font-weight:600;color:var(--muted);margin-left:6px;vertical-align:3px;border:1px solid var(--line);border-radius:999px;padding:2px 8px}
@@ -171,6 +223,7 @@
         </select>
         <input type="text" id="q" placeholder="이름·종류 검색" style="flex:1;min-width:90px">
         <label class="ck"><input type="checkbox" id="showHidden">숨긴 곳</label>
+        <label class="ck" title="회사 사람들이 '식대 안에 됐어요'라고 표시한 곳만"><input type="checkbox" id="okOnly">💰 식대 안쪽만</label>
       </div>
       <div class="ctrl">
         <button class="btn accent" id="pick">🎲 이 중에서 뽑기</button>
@@ -194,8 +247,18 @@
   <div class="rooms" id="roomsView"></div>
   <div class="chat-msgs" id="chatMsgs" style="display:none"></div>
   <div class="emoji-pop" id="emojiPop"></div>
+  <div class="poll-pop" id="pollPop">
+    <b style="font-size:13px">📊 메뉴 투표 만들기 <small style="font-weight:500;color:var(--muted)">(후보 2~4곳)</small></b>
+    <div class="chips" id="pollChips"></div>
+    <input id="pollSearch" placeholder="가게 이름 검색해서 후보 추가">
+    <div class="poll-res" id="pollRes"></div>
+    <div style="display:flex;gap:6px;align-items:center">마감
+      <select id="pollMin"><option value="5">5분 뒤</option><option value="10" selected>10분 뒤</option><option value="20">20분 뒤</option><option value="30">30분 뒤</option><option value="60">1시간 뒤</option></select>
+      <span class="spacer"></span><button type="button" class="btn ghost" id="pollCancel">취소</button><button type="button" class="btn accent" id="pollMake">투표 올리기</button></div>
+  </div>
   <form class="chat-form" id="chatForm" autocomplete="off" style="display:none">
     <button type="button" class="emoji-btn" id="emojiBtn" aria-label="이모지">😊</button>
+    <button type="button" class="emoji-btn" id="pollBtn" aria-label="메뉴 투표" title="메뉴 투표">📊</button>
     <input id="chatInput" maxlength="300" placeholder="메시지 입력">
     <button type="submit">보내기</button>
   </form>
@@ -232,6 +295,24 @@ const MEALS = {
 // 처음 열 때: 오후 3시 이후면 저녁 모드 (제목을 누르면 언제든 바꿀 수 있음)
 let meal = (() => { const s = (() => { try{ return sessionStorage.getItem("lunch.meal"); }catch(e){ return null; } })(); return s || (new Date().getHours() >= 15 ? "dinner" : "lunch"); })();
 let closedEarly = {};   // 저녁 7시 전에 닫는다고 표시된 가게 (모두가 같이 봄)
+let gathers = {};       // 오늘의 '같이 가요' 모집 (자정에 날짜가 바뀌면 새로 시작)
+let ratings = {};       // 우리 회사 평가 {가게: {사람: {v, okLunch, okDinner, nick, ts}}}
+let visits = {};        // 최근 간 곳 {가게: {ts, nick}}
+let pollDraft = [];     // 투표 후보 (가게 id)
+let gatherFormOpen = false;
+const KST_DAY = () => new Date((typeof nowMs === "function" ? nowMs() : Date.now()) + 9 * 3600 * 1000).toISOString().slice(0, 10);
+const walkMin = d => Math.max(1, Math.round(d * 1.3 / 67));   // 직선거리 × 1.3(골목) ÷ 분당 67m
+function rateStats(id){
+  const r = ratings[id] || {}, key = meal === "dinner" ? "okDinner" : "okLunch";
+  let up = 0, down = 0, ok = 0, no = 0;
+  for(const x of Object.values(r)){ if(x.v === 1) up++; if(x.v === -1) down++; if(x[key] === true) ok++; if(x[key] === false) no++; }
+  return {up, down, ok, no, okMajority: ok > 0 && ok > no};
+}
+function daysAgo(ts){ if(!ts) return null; const now = Date.now(); return Math.floor((now - ts) / 86400000); }
+function requireNick(){
+  if(myNick) return true;
+  openChat(); toast("먼저 채팅에서 쓸 이름을 정해주세요"); return false;
+}
 const PICK_TABS_BASE = [["menu", "🍽 메뉴/가격", "#menuInfo"], ["photo", "📷 사진", "#photoview"], ["review", "💬 후기", "#review"]];
 let PICK_TABS = PICK_TABS_BASE;
 const CACHE_KEY = "lunch.places.v1", HIDDEN_KEY = "lunch.hidden", NICK_KEY = "lunch.nick";
@@ -329,6 +410,7 @@ function visible(){
   const arr = places.filter(p => {
     if(hidden.has(p.id) && !withHidden) return false;
     if(meal === "dinner" && closedEarly[p.id] && !withHidden) return false;
+    if($("#okOnly").checked && !rateStats(p.id).okMajority) return false;
     if(group !== "전체" && p.group !== group) return false;
     if(q && !(p.name + " " + p.category_full).includes(q)) return false;
     return true;
@@ -337,17 +419,51 @@ function visible(){
   else arr.sort((a, b) => a.distance - b.distance);
   return arr;
 }
+function cardTags(p){
+  const s = rateStats(p.id), v = visits[p.id], d = v ? daysAgo(v.ts) : null;
+  const g = Object.values(gathers).filter(x => x.placeId === p.id);
+  const tags = [];
+  if(g.length) tags.push(`<span class="tagx gath">🙋 오늘 ${esc(g[0].time)} 모집 중</span>`);
+  if(s.up || s.down) tags.push(`<span class="tagx">👍 ${s.up} · 👎 ${s.down}</span>`);
+  if(s.okMajority) tags.push(`<span class="tagx ok">💰 ${MEALS[meal].name} 식대 안쪽 (${s.ok})</span>`);
+  if(d !== null && d <= 7) tags.push(`<span class="tagx vis">✅ ${d === 0 ? "오늘" : d + "일 전"} 다녀옴</span>`);
+  return tags.length ? `<div class="tags">${tags.join("")}</div>` : "";
+}
 function card(p){
   const h = hidden.has(p.id);
   return `<div class="card ${h ? "hiddenp" : ""} ${selected === p.id ? "sel" : ""}" data-id="${esc(p.id)}">
     <div class="top">
       <div class="name"><span class="gtag" style="background:${GROUPS[p.group] || "#868e96"}">${esc(p.group)}</span>${esc(p.name)}</div>
-      <div class="dist">${p.distance}m</div>
+      <div class="dist"><span class="walk">도보 ${walkMin(p.distance)}분</span> · ${p.distance}m</div>
     </div>
     <div class="meta">${esc(p.category)} · ${esc(p.road_address || p.address)}</div>
+    ${cardTags(p)}
     <div class="row">${meal === "dinner" ? `<button class="link ce ${closedEarly[p.id] ? "on" : ""}" data-act="ce">${closedEarly[p.id] ? "🌙 7시 전 마감 (취소)" : "🌙 7시 전에 닫아요"}</button>` : ""}
       <span class="spacer"></span><button class="link" data-act="hide">${h ? "다시 보기" : "숨기기"}</button></div>
   </div>`;
+}
+function timeSlots(){
+  const [h0, h1] = meal === "dinner" ? [17, 21] : [11, 14];
+  const out = [];
+  for(let h = h0; h < h1; h++) for(const m of [0, 10, 20, 30, 40, 50]) out.push(`${h}:${String(m).padStart(2, "0")}`);
+  return out;
+}
+function pickActions(p){
+  const mine = (ratings[p.id] || {})[myId] || {}, s = rateStats(p.id), key = meal === "dinner" ? "okDinner" : "okLunch";
+  const v = visits[p.id], d = v ? daysAgo(v.ts) : null;
+  const slots = timeSlots(), now = new Date(), cur = now.getHours() * 60 + now.getMinutes();
+  const def = slots.find(x => { const [h, m] = x.split(":").map(Number); return h * 60 + m >= cur + 10; }) || slots[0];
+  return `<div class="actions">
+      <button class="link" data-pick="gather" style="background:#4c6ef5;color:#fff;border-color:#4c6ef5;font-weight:700">🙋 같이 갈 사람 모집</button>
+      <button class="link up ${mine.v === 1 ? "on" : ""}" data-rate="up">👍 ${s.up}</button>
+      <button class="link down ${mine.v === -1 ? "on" : ""}" data-rate="down">👎 ${s.down}</button>
+      <button class="link ok ${mine[key] === true ? "on" : ""}" data-rate="ok">💰 ${MEALS[meal].budget.toLocaleString()}원 안에 됐어요 ${s.ok ? "(" + s.ok + ")" : ""}</button>
+      <button class="link ${mine[key] === false ? "on" : ""}" data-rate="no">식대 넘었어요 ${s.no ? "(" + s.no + ")" : ""}</button>
+      <button class="link ${d === 0 ? "on" : ""}" data-pick="visit">✅ ${d === 0 ? "오늘 다녀옴" : "오늘 여기 갔어요"}</button>
+      <button class="link" data-pick="poll">📊 투표 후보에 추가</button>
+    </div>
+    ${gatherFormOpen ? `<div class="gform">출발 시간 <select id="gTime">${slots.map(x => `<option ${x === def ? "selected" : ""}>${x}</option>`).join("")}</select>
+      <button class="btn accent" data-pick="gatherGo" style="background:#4c6ef5">모집하기</button><button class="btn ghost" data-pick="gatherNo">취소</button></div>` : ""}`;
 }
 function pickPanel(){
   const p = places.find(x => x.id === pickedId);
@@ -355,7 +471,8 @@ function pickPanel(){
   return `<div class="pickbox" id="pickbox">
     <div class="pickhead"><div style="flex:1"><div class="t">${pickByDice ? "🎲 오늘의 " + MEALS[meal].name : "📍 선택한 가게"}</div>
       <div class="n"><span class="gtag" style="background:${GROUPS[p.group] || "#868e96"}">${esc(p.group)}</span>${esc(p.name)}</div>
-      <div class="meta">${esc(p.category)} · ${p.distance}m</div></div></div>
+      <div class="meta">${esc(p.category)} · 도보 ${walkMin(p.distance)}분 · ${p.distance}m</div>
+      ${pickActions(p)}</div></div>
     <div class="ptabs">${PICK_TABS.map(([k, label]) => `<button class="ptab ${k === pickTab ? "on" : ""}" data-ptab="${k}">${label}</button>`).join("")}</div>
     <iframe class="pickframe" src="${esc(pickSrc(p))}" title="카카오맵 가게 정보"></iframe>
     <div class="pickfoot">
@@ -366,6 +483,20 @@ function pickPanel(){
       <button class="link" data-pick="close">닫기</button>
     </div>
   </div>`;
+}
+function gatherSection(){
+  const list = Object.entries(gathers).sort((a, b) => a[1].time.localeCompare(b[1].time, undefined, {numeric: true}));
+  if(!list.length) return "";
+  return `<div class="gather"><div class="gather-h">🙋 오늘 같이 가요 <small>밤 12시에 초기화</small></div>` + list.map(([id, g]) => {
+    const mem = g.members || {}, names = Object.values(mem), inIt = !!mem[myId];
+    const isHost = g.hostUid === myId;
+    return `<div class="gitem" data-g="${esc(id)}">
+      <div class="gt"><span class="gtime">${esc(g.time)}</span>${g.meal === "dinner" ? "🌙" : "☀️"} ${esc(clean(g.placeName))}</div>
+      <div class="gm">${names.length}명 · ${names.map(n => esc(clean(n))).join(", ")}</div>
+      <div class="gb"><button class="link join ${inIt ? "in" : ""}" data-gact="join">${inIt ? "빠지기" : "🙋 나도 갈래요"}</button>
+        <button class="link" data-gact="view">가게 보기</button>
+        ${isHost ? `<span class="spacer"></span><button class="link" data-gact="cancel">모집 취소</button>` : ""}</div></div>`;
+  }).join("") + `</div>`;
 }
 function renderTabs(){
   const base = places.filter(p => !hidden.has(p.id));
@@ -385,7 +516,7 @@ function render(){
   const arr = visible();
   $("#count").textContent = places.length ? `${arr.length}곳 표시 중` : "";
   const old = $("#pickbox"), keep = old && old.dataset.id === pickedId ? old : null;
-  $("#list").innerHTML = pickPanel() + (arr.length ? arr.map(card).join("")
+  $("#list").innerHTML = gatherSection() + pickPanel() + (arr.length ? arr.map(card).join("")
     : places.length ? `<div class="empty">조건에 맞는 식당이 없어요.</div>`
     : `<div class="empty">식당을 불러오는 중이에요…</div>`);
   if(keep && $("#pickbox")){   // 같은 가게면 카카오맵 화면을 다시 로딩하지 않음
@@ -493,6 +624,31 @@ $("#list").addEventListener("click", e => {
     if(pk === "again") $("#pick").click();
     else if(pk === "close") closePlace();
     else if(pk === "share" && p) shareToChat(p);
+    else if(pk === "gather"){ if(!requireNick()) return; gatherFormOpen = !gatherFormOpen; render(); }
+    else if(pk === "gatherNo"){ gatherFormOpen = false; render(); }
+    else if(pk === "gatherGo" && p) createGather(p, $("#gTime").value);
+    else if(pk === "visit" && p) markVisit(p);
+    else if(pk === "poll" && p){
+      if(pollDraft.includes(p.id)) toast("이미 투표 후보에 있어요");
+      else if(pollDraft.length >= 4) toast("후보는 4곳까지예요");
+      else { pollDraft.push(p.id); toast(`투표 후보 ${pollDraft.length}곳 · 채팅방의 📊에서 올릴 수 있어요`); }
+    }
+    return;
+  }
+  const rt = e.target.closest("[data-rate]")?.dataset.rate;
+  if(rt){ const p = places.find(x => x.id === pickedId); if(p) ratePlace(p, rt); return;
+    return;
+  }
+  const gi = e.target.closest(".gitem");
+  if(gi){
+    const gid = gi.dataset.g, g = gathers[gid], act = e.target.closest("[data-gact]")?.dataset.gact;
+    if(!g || !act) return;
+    if(act === "view") openPlace(g.placeId, false);
+    else if(act === "join"){
+      if(!requireNick()) return;
+      const ref = db.ref(`lunchchat/gather/${KST_DAY()}/${gid}/members/${myId}`);
+      ((g.members || {})[myId] ? ref.remove() : ref.set(myNick)).catch(err => toast("실패: " + err.message, 4000));
+    }else if(act === "cancel") db.ref(`lunchchat/gather/${KST_DAY()}/${gid}`).remove().then(() => toast("모집을 취소했어요"));
     return;
   }
   const c = e.target.closest(".card"); if(!c) return;
@@ -511,10 +667,12 @@ $("#list").addEventListener("click", e => {
   }
   openPlace(id, false);
 });
-["#sort", "#showHidden"].forEach(s => $(s).addEventListener("change", render));
+["#sort", "#showHidden", "#okOnly"].forEach(s => $(s).addEventListener("change", render));
 $("#q").addEventListener("input", render);
 $("#pick").addEventListener("click", () => {
-  const from = visible().filter(p => !hidden.has(p.id));
+  const all = visible().filter(p => !hidden.has(p.id));
+  const fresh = all.filter(p => { const d = visits[p.id] ? daysAgo(visits[p.id].ts) : null; return d === null || d > 3; });
+  const from = fresh.length ? fresh : all;   // 최근 3일 안에 간 곳은 빼고 뽑기
   if(!from.length){ toast("뽑을 식당이 없어요"); return; }
   const p = from[Math.floor(Math.random() * from.length)];
   openPlace(p.id, true);
@@ -545,6 +703,7 @@ const mask = m => "*".repeat([...m].length);
 const clean = s => String(s ?? "").replace(BAD_RE, mask).replace(SEXUAL_RE, mask).replace(ORGAN_RE, mask);
 const EMOJIS = ["😀","😂","🤣","😊","😍","🥰","😋","🤤","😎","🤔","😴","😭","😡","🥲","🙏","👍","👎","👏","🙌","🔥","💯","❤️","✨","🎉","🍚","🍜","🍲","🍛","🍣","🍱","🥟","🍝","🍕","🍔","🌮","🥗","🍗","🥩","🍤","🍙","🍳","🥘","☕","🧋","🍺","🏃","⏰","✅"];
 let db = null, fbReady = false, serverOffset = 0;
+let msgEls = {}, msgData = {};
 let rooms = {}, view = "rooms", currentRoom = null, msgQuery = null, creating = false, pendingShare = null;
 let chatOpen = false, unread = 0, myNick = store.get(NICK_KEY, "");
 const seenAt = store.get("lunch.seen", {});   // 방별로 마지막으로 읽은 시각
@@ -604,7 +763,7 @@ function liveRooms(){
 /* ── 화면 그리기 ── */
 function head(html){ $("#chatHead").innerHTML = html; }
 function showOnly(which){
-  $("#emojiPop").classList.remove("on");
+  $("#emojiPop").classList.remove("on"); $("#pollPop").classList.remove("on");
   $("#roomsView").style.display = which === "rooms" ? "block" : "none";
   $("#chatMsgs").style.display = which === "rooms" ? "none" : "flex";
   $("#chatForm").style.display = which === "room" ? "flex" : "none";
@@ -699,12 +858,19 @@ function openRoom(id){
     <button class="x" data-c="close" aria-label="닫기" style="margin-left:${isAdmin ? "6px" : "auto"}">×</button>`);
   $("#chatMsgs").innerHTML = `<div class="chat-empty" id="chatEmpty">첫 메시지를 남겨보세요 😋<br>"오늘 점심 뭐 드실래요?"</div>`;
   msgQuery = db.ref("lunchchat/msgs/" + id).orderByChild("ts").limitToLast(100);
+  msgEls = {}; msgData = {};
+  msgQuery.on("child_changed", snap => {
+    const m = snap.val(); if(!m || !msgEls[snap.key]) return;
+    m._key = snap.key; const el = renderMsg(m); msgEls[snap.key].replaceWith(el); msgEls[snap.key] = el; msgData[snap.key] = m;
+  });
   msgQuery.on("child_added", snap => {
     const m = snap.val(); if(!m || !m.text) return;
+    m._key = snap.key; msgData[snap.key] = m;
     $("#chatEmpty")?.remove();
     const box = $("#chatMsgs");
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
-    box.appendChild(renderMsg(m));
+    const el = renderMsg(m); msgEls[snap.key] = el;
+    box.appendChild(el);
     if(atBottom || m.uid === myId) box.scrollTop = box.scrollHeight;
     markSeen(id); setBadge();
   });
@@ -712,11 +878,23 @@ function openRoom(id){
   if(pendingShare){ const p = pendingShare; pendingShare = null; sharePlace(p); }
   setTimeout(() => $("#chatInput").focus(), 50);
 }
+function pollHtml(key, m){
+  const opts = m.poll.options || [], votes = m.votes || {}, ended = nowMs() >= m.poll.endsAt;
+  const counts = opts.map((_, i) => Object.values(votes).filter(v => v === i).length);
+  const total = counts.reduce((a, b) => a + b, 0), max = Math.max(0, ...counts);
+  const left = Math.max(0, Math.ceil((m.poll.endsAt - nowMs()) / 60000));
+  const winners = ended && max > 0 ? counts.map((c, i) => c === max ? i : -1).filter(i => i >= 0) : [];
+  return `<div class="poll" data-poll="${esc(key)}"><div class="pq">📊 메뉴 투표<small>${ended ? "마감 · " + total + "표" : left + "분 남음 · " + total + "표"}</small></div>` +
+    opts.map((o, i) => `<button class="popt ${votes[myId] === i ? "mine" : ""} ${winners.includes(i) ? "win" : ""}" data-pi="${i}" data-pid="${esc(o.id)}">
+      <div class="bar" style="width:${total ? Math.round(counts[i] / total * 100) : 0}%"></div>
+      <span>${winners.includes(i) ? "🏆 " : ""}${esc(clean(o.name))}</span><span class="cnt">${counts[i]}</span></button>`).join("") +
+    (ended ? (winners.length ? `<div style="font-size:12px;margin-top:6px">결과: ${winners.map(i => esc(clean(opts[i].name))).join(", ")} (눌러서 가게 보기)</div>` : `<div style="font-size:12px;margin-top:6px">투표한 사람이 없어요</div>`) : "") + `</div>`;
+}
 function renderMsg(m){
   const me = m.uid === myId && m.nick === myNick;   // 같은 기기에서 이름을 바꿔 쓰는 경우도 구분
   const div = document.createElement("div");
   div.className = "msg" + (me ? " me" : "");
-  let body = esc(clean(m.text));
+  let body = m.poll ? pollHtml(m._key, m) : esc(clean(m.text));
   if(m.place) body += `<span class="share" data-place="${esc(m.place)}">지도에서 보기 →</span>`;
   div.innerHTML = `<div class="who">${esc(clean(m.nick))}${me ? " (나)" : ""}</div><div class="bubble">${body}</div><div class="time">${chatTime(m.ts)}</div>`;
   return div;
@@ -768,7 +946,34 @@ $("#roomsView").addEventListener("click", e => {
 });
 $("#chatForm").addEventListener("submit", e => { e.preventDefault(); sendChat($("#chatInput").value); $("#chatInput").value = ""; $("#emojiPop").classList.remove("on"); });
 $("#emojiPop").innerHTML = EMOJIS.map(e => `<button type="button">${e}</button>`).join("");
-$("#emojiBtn").addEventListener("click", () => $("#emojiPop").classList.toggle("on"));
+$("#emojiBtn").addEventListener("click", () => { $("#pollPop").classList.remove("on"); $("#emojiPop").classList.toggle("on"); });
+function renderPollPop(){
+  $("#pollChips").innerHTML = pollDraft.map(id => { const p = places.find(x => x.id === id); return p ? `<span class="chip" data-rm="${esc(id)}">${esc(p.name)} ×</span>` : ""; }).join("") || `<span style="font-size:12px;color:var(--muted)">아직 후보가 없어요. 아래에서 검색하거나, 가게 정보창의 '투표 후보에 추가'를 눌러요.</span>`;
+  const q = $("#pollSearch").value.trim();
+  const res = q ? places.filter(p => p.name.includes(q) && !pollDraft.includes(p.id)).slice(0, 6) : [];
+  $("#pollRes").innerHTML = res.map(p => `<button type="button" data-add="${esc(p.id)}">${esc(p.name)} <small style="color:var(--muted)">${esc(p.group)} · 도보 ${walkMin(p.distance)}분</small></button>`).join("");
+}
+$("#pollBtn").addEventListener("click", () => { $("#emojiPop").classList.remove("on"); $("#pollPop").classList.toggle("on"); renderPollPop(); $("#pollSearch").focus(); });
+$("#pollSearch").addEventListener("input", renderPollPop);
+$("#pollPop").addEventListener("click", e => {
+  const add = e.target.closest("[data-add]")?.dataset.add, rm = e.target.closest("[data-rm]")?.dataset.rm;
+  if(add){ if(pollDraft.length >= 4){ toast("후보는 4곳까지예요"); return; } pollDraft.push(add); $("#pollSearch").value = ""; renderPollPop(); }
+  if(rm){ pollDraft = pollDraft.filter(x => x !== rm); renderPollPop(); }
+});
+$("#pollCancel").addEventListener("click", () => $("#pollPop").classList.remove("on"));
+$("#pollMake").addEventListener("click", () => {
+  if(pollDraft.length < 2){ toast("후보를 2곳 이상 골라주세요"); return; }
+  if(!db || !currentRoom) return;
+  const options = pollDraft.map(id => { const p = places.find(x => x.id === id); return {id, name: p ? p.name : id}; });
+  const endsAt = nowMs() + Number($("#pollMin").value) * 60000, ts = firebase.database.ServerValue.TIMESTAMP, id = currentRoom;
+  const text = "📊 메뉴 투표: " + options.map(o => o.name).join(" / ");
+  db.ref("lunchchat/msgs/" + id).push({uid: myId, nick: myNick, text: clean(text).slice(0, 300), ts, poll: {options, endsAt}})
+    .then(() => db.ref("lunchchat/rooms/" + id).update({lastAt: ts, lastText: "📊 메뉴 투표", lastNick: myNick, lastUid: myId}))
+    .then(() => { pollDraft = []; $("#pollPop").classList.remove("on"); })
+    .catch(err => toast("투표 올리기 실패: " + err.message, 4000));
+});
+// 투표 남은 시간 / 마감 표시 갱신
+setInterval(() => { for(const [k, m] of Object.entries(msgData)) if(m.poll && msgEls[k]?.isConnected){ const el = renderMsg(m); msgEls[k].replaceWith(el); msgEls[k] = el; } }, 20000);
 $("#emojiPop").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b) return;
   const inp = $("#chatInput"), s = inp.selectionStart ?? inp.value.length, en = inp.selectionEnd ?? inp.value.length;
@@ -776,6 +981,15 @@ $("#emojiPop").addEventListener("click", e => {
   const pos = s + b.textContent.length; inp.focus(); inp.setSelectionRange(pos, pos);
 });
 $("#chatMsgs").addEventListener("click", e => {
+  const po = e.target.closest(".popt");
+  if(po){
+    const key = po.closest(".poll").dataset.poll, m = msgData[key]; if(!m) return;
+    const i = Number(po.dataset.pi);
+    if(nowMs() >= m.poll.endsAt){ const pid = po.dataset.pid; if(places.some(p => p.id === pid)) openPlace(pid, false); return; }
+    const ref = db.ref(`lunchchat/msgs/${currentRoom}/${key}/votes/${myId}`);
+    ((m.votes || {})[myId] === i ? ref.remove() : ref.set(i)).catch(err => toast("투표 실패: " + err.message, 4000));
+    return;
+  }
   const id = e.target.dataset.place; if(!id) return;
   if(places.some(p => p.id === id)) openPlace(id, false); else toast("목록에 없는 가게예요");
 });
@@ -803,9 +1017,51 @@ $("#mealToggle").addEventListener("click", () => {
   render();
   toast(`${MEALS[meal].icon} ${MEALS[meal].name} 모드 · 식대 ${MEALS[meal].budget.toLocaleString()}원`);
 });
+let renderQueued = false;
+function renderSoon(){ if(renderQueued) return; renderQueued = true; requestAnimationFrame(() => { renderQueued = false; render(); }); }
+let gatherDay = null, gatherRef = null;
+function watchGather(){
+  const day = KST_DAY();
+  if(day === gatherDay) return;
+  if(gatherRef) gatherRef.off();
+  gatherDay = day; gathers = {};
+  gatherRef = db.ref("lunchchat/gather/" + day);
+  gatherRef.on("value", s => { gathers = s.val() || {}; renderSoon(); });
+}
 function watchClosedEarly(){
   if(!initFirebase()) return;
-  db.ref("lunchchat/closedEarly").on("value", s => { closedEarly = s.val() || {}; render(); });
+  db.ref("lunchchat/closedEarly").on("value", s => { closedEarly = s.val() || {}; renderSoon(); });
+  db.ref("lunchchat/ratings").on("value", s => { ratings = s.val() || {}; renderSoon(); });
+  db.ref("lunchchat/visits").on("value", s => { visits = s.val() || {}; renderSoon(); });
+  watchGather();
+  setInterval(watchGather, 60000);   // 밤 12시가 지나면 새 날짜의 모집으로 자동 전환 (= 초기화)
+}
+function createGather(p, time){
+  if(!requireNick() || !initFirebase()) return;
+  const ref = db.ref("lunchchat/gather/" + KST_DAY()).push();
+  ref.set({placeId: p.id, placeName: p.name, time, meal, host: myNick, hostUid: myId,
+           createdAt: firebase.database.ServerValue.TIMESTAMP, members: {[myId]: myNick}})
+    .then(() => { gatherFormOpen = false; render(); $("#list").scrollTop = 0; toast(`🙋 ${time} ${p.name} 모집을 올렸어요`); })
+    .catch(err => toast("모집 실패: " + err.message, 4000));
+}
+function markVisit(p){
+  if(!requireNick() || !initFirebase()) return;
+  const d = visits[p.id] ? daysAgo(visits[p.id].ts) : null;
+  if(d === 0){ toast("오늘 이미 다녀온 걸로 표시돼 있어요"); return; }
+  db.ref("lunchchat/visits/" + p.id).set({ts: firebase.database.ServerValue.TIMESTAMP, nick: myNick})
+    .then(() => toast("다녀온 곳으로 기록했어요 · 3일 동안 뽑기에서 빠져요"))
+    .catch(err => toast("저장 실패: " + err.message, 4000));
+}
+function ratePlace(p, kind){
+  if(!requireNick() || !initFirebase()) return;
+  const mine = Object.assign({}, (ratings[p.id] || {})[myId] || {});
+  const key = meal === "dinner" ? "okDinner" : "okLunch";
+  if(kind === "up") mine.v = mine.v === 1 ? 0 : 1;
+  if(kind === "down") mine.v = mine.v === -1 ? 0 : -1;
+  if(kind === "ok") mine[key] = mine[key] === true ? null : true;
+  if(kind === "no") mine[key] = mine[key] === false ? null : false;
+  mine.nick = myNick; mine.ts = firebase.database.ServerValue.TIMESTAMP;
+  db.ref(`lunchchat/ratings/${p.id}/${myId}`).set(mine).catch(err => toast("저장 실패: " + err.message, 4000));
 }
 applyMeal();
 
