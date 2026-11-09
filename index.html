@@ -591,10 +591,18 @@ function focusPlace(id){
   }
 }
 function closePlace(){
+  const was = pickedId;
   pickedId = null; selected = null;
   if(info){ info.setMap(null); info = null; }
   document.querySelectorAll(".pin.sel").forEach(e => e.classList.remove("sel"));
   render();
+  // 접은 뒤 맨 위로 튀지 않고, 방금 보던 가게 카드 자리에 그대로 있게
+  const card = was && document.querySelector(`.card[data-id="${CSS.escape(was)}"]`);
+  if(card){
+    card.classList.add("sel");
+    card.scrollIntoView({block: "center"});
+    setTimeout(() => card.classList.remove("sel"), 1200);
+  }
 }
 function openPlace(id, byDice){
   // 이미 열려 있는 가게를 다시 누르면 접기
