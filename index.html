@@ -458,7 +458,7 @@ function timeSlots(){
   return out;
 }
 function pickActions(p){
-  const mine = (ratings[p.id] || {})[myId] || {}, s = rateStats(p.id), key = meal === "dinner" ? "okDinner" : "okLunch";
+  const mine = (ratings[p.id] || {})[authUid()] || {}, s = rateStats(p.id), key = meal === "dinner" ? "okDinner" : "okLunch";
   const v = visits[p.id], d = v ? daysAgo(v.ts) : null;
   const slots = timeSlots(), now = new Date(), cur = now.getHours() * 60 + now.getMinutes();
   const def = slots.find(x => { const [h, m] = x.split(":").map(Number); return h * 60 + m >= cur + 10; }) || (meal === "dinner" ? "18:30" : "12:00");
@@ -483,9 +483,9 @@ function pickPanel(){
       <div class="meta">${esc(p.category)} · 도보 ${walkMin(p.distance)}분 · ${p.distance}m</div>
       ${pickActions(p)}</div></div>
     <div class="ptabs">${PICK_TABS.map(([k, label]) => `<button class="ptab ${k === pickTab ? "on" : ""}" data-ptab="${k}">${label}</button>`).join("")}</div>
-    <iframe class="pickframe" src="${esc(pickSrc(p))}" title="카카오맵 가게 정보"></iframe>
+    <iframe class="pickframe" src="${esc(pickSrc(p))}" title="카카오맵 가게 정보" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>
     <div class="pickfoot">
-      <a class="link k" href="${esc(pickSrc(p))}" target="_blank" rel="noopener">새 창으로 크게 보기</a>
+      <a class="link k" href="${esc(pickSrc(p))}" target="_blank" rel="noopener noreferrer">새 창으로 크게 보기</a>
       <button class="link" data-pick="share">💬 채팅에 공유</button>
       <span class="spacer"></span>
       <button class="link" data-pick="again">🎲 다시 뽑기</button>
@@ -497,7 +497,7 @@ function gatherSection(){
   const list = Object.entries(gathers).sort((a, b) => a[1].time.localeCompare(b[1].time, undefined, {numeric: true}));
   if(!list.length) return "";
   return `<div class="gather"><div class="gather-h">🙋 오늘 같이 가요 <small>밤 12시에 초기화</small></div>` + list.map(([id, g]) => {
-    const mem = g.members || {}, names = Object.values(mem), inIt = !!mem[myId];
+    const mem = g.members || {}, names = Object.values(mem), inIt = !!mem[authUid()];
     const isHost = !!g.hostAuth && g.hostAuth === authUid();
     return `<div class="gitem" data-g="${esc(id)}">
       <div class="gt"><span class="gtime">${esc(g.time)}</span>${g.meal === "dinner" ? "🌙" : "☀️"} ${esc(clean(g.placeName))}</div>
@@ -636,6 +636,7 @@ $("#list").addEventListener("click", e => {
     document.querySelectorAll(".ptab").forEach(b => b.classList.toggle("on", b.dataset.ptab === pickTab));
     const fr = document.createElement("iframe");
     fr.className = "pickframe"; fr.title = "카카오맵 가게 정보"; fr.src = pickSrc(p);
+    fr.setAttribute("sandbox", "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"); fr.referrerPolicy = "no-referrer";
     document.querySelector(".pickframe").replaceWith(fr);
     const a = document.querySelector(".pickfoot a.k"); if(a) a.href = pickSrc(p);
     return;
@@ -670,8 +671,10 @@ $("#list").addEventListener("click", e => {
     if(act === "view") openPlace(g.placeId, false);
     else if(act === "join"){
       if(!requireNick()) return;
-      const ref = db.ref(`lunchchat/gather/${KST_DAY()}/${gid}/members/${myId}`);
-      ((g.members || {})[myId] ? ref.remove() : ref.set(myNick)).catch(err => toast("실패: " + err.message, 4000));
+      ensureAuth().then(u => {
+        const ref = db.ref(`lunchchat/gather/${KST_DAY()}/${gid}/members/${u.uid}`);
+        return (g.members || {})[u.uid] ? ref.remove() : ref.set(myNick);
+      }).catch(err => toast("실패: " + err.message, 4000));
     }else if(act === "cancel") db.ref(`lunchchat/gather/${KST_DAY()}/${gid}`).remove()
       .then(() => toast("모집을 취소했어요"))
       .catch(() => toast("모집한 본인만 취소할 수 있어요", 3500));
@@ -683,9 +686,9 @@ $("#list").addEventListener("click", e => {
     if(!initFirebase()){ toast("저장 서버에 연결할 수 없어요"); return; }
     const ref = db.ref("lunchchat/closedEarly/" + id), name = (places.find(x => x.id === id) || {}).name || "";
     if(closedEarly[id]){
-      ref.remove().then(() => toast(`'${name}' 다시 저녁 목록에 넣었어요`)).catch(err => toast("저장 실패: " + err.message, 4000));
+      ensureAuth().then(() => ref.remove()).then(() => toast(`'${name}' 다시 저녁 목록에 넣었어요`)).catch(err => toast("저장 실패: " + err.message, 4000));
     }else{
-      ref.set(true)
+      ensureAuth().then(() => ref.set(true))
         .then(() => showUndo(`🌙 '${name}' 저녁 목록에서 뺐어요`, () => ref.remove().then(() => toast("되돌렸어요"))))
         .catch(err => toast("저장 실패: " + err.message, 4000));
     }
@@ -859,7 +862,7 @@ function createRoom(name){
   name = clean(name.trim().slice(0, 20)); if(!name) return;
   const ref = db.ref("lunchchat/rooms").push();
   const ts = firebase.database.ServerValue.TIMESTAMP;
-  ref.set({name, createdAt: ts, createdBy: myNick, lastAt: ts, lastText: "", lastNick: "", lastUid: ""})
+  ensureAuth().then(() => ref.set({name, createdAt: ts, createdBy: myNick.slice(0, 20), lastAt: ts, lastText: "", lastNick: "", lastUid: ""}))
     .then(() => { creating = false; openRoom(ref.key); })
     .catch(err => toast("팀을 만들지 못했어요: " + err.message, 4000));
 }
@@ -917,7 +920,7 @@ function pollHtml(key, m){
   const left = Math.max(0, Math.ceil((m.poll.endsAt - nowMs()) / 60000));
   const winners = ended && max > 0 ? counts.map((c, i) => c === max ? i : -1).filter(i => i >= 0) : [];
   return `<div class="poll" data-poll="${esc(key)}"><div class="pq">📊 메뉴 투표<small>${ended ? "마감 · " + total + "표" : left + "분 남음 · " + total + "표"}</small></div>` +
-    opts.map((o, i) => `<button class="popt ${votes[myId] === i ? "mine" : ""} ${winners.includes(i) ? "win" : ""}" data-pi="${i}" data-pid="${esc(o.id)}">
+    opts.map((o, i) => `<button class="popt ${votes[authUid()] === i ? "mine" : ""} ${winners.includes(i) ? "win" : ""}" data-pi="${i}" data-pid="${esc(o.id)}">
       <div class="bar" style="width:${total ? Math.round(counts[i] / total * 100) : 0}%"></div>
       <span>${winners.includes(i) ? "🏆 " : ""}${esc(clean(o.name))}</span><span class="cnt">${counts[i]}</span></button>`).join("") +
     (ended ? (winners.length ? `<div style="font-size:12px;margin-top:6px">결과: ${winners.map(i => esc(clean(opts[i].name))).join(", ")} (눌러서 가게 보기)</div>` : `<div style="font-size:12px;margin-top:6px">투표한 사람이 없어요</div>`) : "") + `</div>`;
@@ -935,8 +938,8 @@ function sendChat(text, place){
   text = clean((text || "").trim().slice(0, 300));
   if(!db || !currentRoom || !text) return;
   const ts = firebase.database.ServerValue.TIMESTAMP, id = currentRoom;
-  db.ref("lunchchat/msgs/" + id).push({uid: myId, nick: myNick, text, place: place || null, ts})
-    .then(() => db.ref("lunchchat/rooms/" + id).update({lastAt: ts, lastText: text.slice(0, 60), lastNick: myNick, lastUid: myId}))
+  ensureAuth().then(() => db.ref("lunchchat/msgs/" + id).push({uid: myId, nick: myNick.slice(0, 20), text, place: place || null, ts}))
+    .then(() => db.ref("lunchchat/rooms/" + id).update({lastAt: ts, lastText: text.slice(0, 60), lastNick: myNick.slice(0, 20), lastUid: myId}))
     .catch(err => toast("전송 실패: " + err.message, 4000));
 }
 function sharePlace(p){ sendChat(`📍 ${p.name} 어때요? (${p.group} · ${p.category} · ${p.distance}m)`, p.id); }
@@ -999,7 +1002,7 @@ $("#pollMake").addEventListener("click", () => {
   const options = pollDraft.map(id => { const p = places.find(x => x.id === id); return {id, name: p ? p.name : id}; });
   const endsAt = nowMs() + Number($("#pollMin").value) * 60000, ts = firebase.database.ServerValue.TIMESTAMP, id = currentRoom;
   const text = "📊 메뉴 투표: " + options.map(o => o.name).join(" / ");
-  db.ref("lunchchat/msgs/" + id).push({uid: myId, nick: myNick, text: clean(text).slice(0, 300), ts, poll: {options, endsAt}})
+  ensureAuth().then(() => db.ref("lunchchat/msgs/" + id).push({uid: myId, nick: myNick.slice(0, 20), text: clean(text).slice(0, 300), ts, poll: {options: options.map(o => ({id: o.id, name: o.name.slice(0, 40)})), endsAt}}))
     .then(() => db.ref("lunchchat/rooms/" + id).update({lastAt: ts, lastText: "📊 메뉴 투표", lastNick: myNick, lastUid: myId}))
     .then(() => { pollDraft = []; $("#pollPop").classList.remove("on"); })
     .catch(err => toast("투표 올리기 실패: " + err.message, 4000));
@@ -1018,8 +1021,11 @@ $("#chatMsgs").addEventListener("click", e => {
     const key = po.closest(".poll").dataset.poll, m = msgData[key]; if(!m) return;
     const i = Number(po.dataset.pi);
     if(nowMs() >= m.poll.endsAt){ const pid = po.dataset.pid; if(places.some(p => p.id === pid)) openPlace(pid, false); return; }
-    const ref = db.ref(`lunchchat/msgs/${currentRoom}/${key}/votes/${myId}`);
-    ((m.votes || {})[myId] === i ? ref.remove() : ref.set(i)).catch(err => toast("투표 실패: " + err.message, 4000));
+    const room = currentRoom;
+    ensureAuth().then(u => {
+      const ref = db.ref(`lunchchat/msgs/${room}/${key}/votes/${u.uid}`);
+      return (m.votes || {})[u.uid] === i ? ref.remove() : ref.set(i);
+    }).catch(err => toast("투표 실패: " + err.message, 4000));
     return;
   }
   const id = e.target.dataset.place; if(!id) return;
@@ -1090,8 +1096,8 @@ async function createGather(p, time){
   if(!requireNick() || !initFirebase()) return;
   let user; try{ user = await ensureAuth(); }catch(err){ toast("로그인 실패: " + err.message, 4000); return; }
   const ref = db.ref("lunchchat/gather/" + KST_DAY()).push();
-  ref.set({placeId: p.id, placeName: p.name, time, meal, host: myNick, hostUid: myId, hostAuth: user.uid,
-           createdAt: firebase.database.ServerValue.TIMESTAMP, members: {[myId]: myNick}})
+  ref.set({placeId: p.id, placeName: p.name.slice(0, 60), time, meal, host: myNick.slice(0, 20), hostUid: myId, hostAuth: user.uid,
+           createdAt: firebase.database.ServerValue.TIMESTAMP, members: {[user.uid]: myNick}})
     .then(() => { gatherFormOpen = false; render(); $("#list").scrollTop = 0; toast(`🙋 ${time} ${p.name} 모집을 올렸어요`); })
     .catch(err => toast("모집 실패: " + err.message, 4000));
 }
@@ -1099,20 +1105,23 @@ function markVisit(p){
   if(!requireNick() || !initFirebase()) return;
   const d = visits[p.id] ? daysAgo(visits[p.id].ts) : null;
   if(d === 0){ toast("오늘 이미 다녀온 걸로 표시돼 있어요"); return; }
-  db.ref("lunchchat/visits/" + p.id).set({ts: firebase.database.ServerValue.TIMESTAMP, nick: myNick})
+  ensureAuth().then(() => db.ref("lunchchat/visits/" + p.id).set({ts: firebase.database.ServerValue.TIMESTAMP, nick: myNick.slice(0, 20)}))
     .then(() => toast("다녀온 곳으로 기록했어요 · 3일 동안 뽑기에서 빠져요"))
     .catch(err => toast("저장 실패: " + err.message, 4000));
 }
-function ratePlace(p, kind){
+async function ratePlace(p, kind){
   if(!requireNick() || !initFirebase()) return;
-  const mine = Object.assign({}, (ratings[p.id] || {})[myId] || {});
+  let user; try{ user = await ensureAuth(); }catch(err){ toast("로그인 실패: " + err.message, 4000); return; }
+  const mine = Object.assign({}, (ratings[p.id] || {})[user.uid] || {});
   const key = meal === "dinner" ? "okDinner" : "okLunch";
   if(kind === "up") mine.v = mine.v === 1 ? 0 : 1;
   if(kind === "down") mine.v = mine.v === -1 ? 0 : -1;
   if(kind === "ok") mine[key] = mine[key] === true ? null : true;
   if(kind === "no") mine[key] = mine[key] === false ? null : false;
   mine.nick = myNick; mine.ts = firebase.database.ServerValue.TIMESTAMP;
-  db.ref(`lunchchat/ratings/${p.id}/${myId}`).set(mine).catch(err => toast("저장 실패: " + err.message, 4000));
+  if(mine.v === 0) delete mine.v;
+  for(const k of ["okLunch", "okDinner"]) if(mine[k] === null) delete mine[k];
+  db.ref(`lunchchat/ratings/${p.id}/${user.uid}`).set({v: mine.v ?? 0, ...mine}).catch(err => toast("저장 실패: " + err.message, 4000));
 }
 applyMeal();
 // 페이지를 켜둔 채로 오후 3시가 되면 저녁으로, 자정이 지나면 점심으로 자동 전환
