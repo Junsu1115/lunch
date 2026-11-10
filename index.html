@@ -316,7 +316,8 @@
 
 <script>
 /* 배포할 때마다 바뀌는 버전 표시. 저장된 옛날 페이지가 열리면 최신 버전으로 자동 새로고침 */
-const BUILD = "20261110185325";
+const BUILD = "20261110185504";
+const ORIG_SEARCH = location.search;   // 초대 링크(?g=...)를 새로고침 후에도 유지하려고 처음 주소를 기억
 (async () => {
   try{
     const res = await fetch(location.pathname + "?nc=" + Date.now(), {cache: "no-store"});
@@ -325,7 +326,7 @@ const BUILD = "20261110185325";
       const key = "lunch.reloaded." + latest;
       if(!sessionStorage.getItem(key)){
         sessionStorage.setItem(key, "1");
-        const q = new URLSearchParams(location.search); q.set("v", latest);
+        const q = new URLSearchParams(ORIG_SEARCH); q.set("v", latest);
         location.replace(location.pathname + "?" + q.toString() + location.hash);
       }
     }
