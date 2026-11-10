@@ -125,6 +125,11 @@
   .gitem .gb{display:flex;gap:6px;margin-top:7px}
   .gitem .join{background:#4c6ef5;color:#fff;border-color:#4c6ef5;font-weight:700}
   .gitem .join.in{background:#fff;color:#4c6ef5}
+  .gitem .gb{flex-wrap:wrap}
+  .gitem .room-btn{background:#ff6b35;color:#fff;border-color:#ff6b35;font-weight:700}
+  .gitem.hl{background:#fff9db;animation:hlfade 3s ease-out}
+  @keyframes hlfade{from{box-shadow:inset 0 0 0 3px #fab005}to{box-shadow:inset 0 0 0 0 #fab005}}
+  body.dinner .gitem.hl{background:#3d3410}
   .actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
   .actions .link{padding:4px 8px}
   .actions .link.on{background:var(--ink);color:#fff;border-color:var(--ink)}
@@ -503,6 +508,8 @@ function gatherSection(){
       <div class="gt"><span class="gtime">${esc(g.time)}</span>${g.meal === "dinner" ? "🌙" : "☀️"} ${esc(clean(g.placeName))}</div>
       <div class="gm">${names.length}명 · ${names.map(n => esc(clean(n))).join(", ")}</div>
       <div class="gb"><button class="link join ${inIt ? "in" : ""}" data-gact="join">${inIt ? "빠지기" : "🙋 나도 갈래요"}</button>
+        <button class="link room-btn" data-gact="room">💬 대화방 ${g.roomId && rooms[g.roomId] ? "들어가기" : "만들기"}</button>
+        <button class="link" data-gact="link">🔗 링크</button>
         <button class="link" data-gact="view">가게 보기</button>
         ${isHost || isAdmin ? `<span class="spacer"></span><button class="link" data-gact="cancel">${isHost ? "모집 취소" : "삭제(관리자)"}</button>` : ""}</div></div>`;
   }).join("") + `</div>`;
@@ -669,6 +676,8 @@ $("#list").addEventListener("click", e => {
     const gid = gi.dataset.g, g = gathers[gid], act = e.target.closest("[data-gact]")?.dataset.gact;
     if(!g || !act) return;
     if(act === "view") openPlace(g.placeId, false);
+    else if(act === "room") openGatherRoom(gid, g);
+    else if(act === "link") shareGatherLink(gid, g);
     else if(act === "join"){
       if(!requireNick()) return;
       ensureAuth().then(u => {
@@ -774,7 +783,7 @@ function initFirebase(){
     if(view === "rooms") showRooms(); else if(view === "room" && currentRoom) openRoom(currentRoom);
   });
   const roomsRef = db.ref("lunchchat/rooms");
-  const onRoom = s => { rooms[s.key] = s.val(); cleanupIfStale(s.key); refreshRooms(); };
+  const onRoom = s => { rooms[s.key] = s.val(); cleanupIfStale(s.key); refreshRooms(); renderSoon(); };
   roomsRef.on("child_added", onRoom);
   roomsRef.on("child_changed", onRoom);
   roomsRef.on("child_removed", s => {
@@ -1075,7 +1084,8 @@ function watchGather(){
   if(gatherRef) gatherRef.off();
   gatherDay = day; gathers = {};
   gatherRef = db.ref("lunchchat/gather/" + day);
-  gatherRef.on("value", s => { gathers = s.val() || {}; renderSoon(); });
+  let first = true;
+  gatherRef.on("value", s => { gathers = s.val() || {}; renderSoon(); if(first){ first = false; setTimeout(handleGatherLink, 300); } });
 }
 function watchClosedEarly(){
   if(!initFirebase()) return;
@@ -1092,13 +1102,61 @@ function ensureAuth(){
   return u ? Promise.resolve(u) : firebase.auth().signInAnonymously().then(c => c.user);
 }
 const authUid = () => (firebase.auth && firebase.auth().currentUser || {}).uid;
+/* ── 같이 가요 → 대화방 / 외부 링크 ── */
+async function openGatherRoom(gid, g){
+  if(!requireNick() || !initFirebase()) return;
+  try{ await ensureAuth(); }catch(err){ toast("로그인 실패: " + err.message, 4000); return; }
+  if(g.roomId && rooms[g.roomId]){ openChat(); openRoom(g.roomId); return; }   // 이미 있으면 그 방으로
+  const day = KST_DAY(), newKey = db.ref("lunchchat/rooms").push().key;
+  const name = clean(`${g.time} ${g.placeName} 가는 팟`).slice(0, 40);
+  // 동시에 두 사람이 눌러도 방이 하나만 생기게: 먼저 모집에 방 번호를 '찜'하고, 성공한 사람만 방을 만듦
+  const tx = await db.ref(`lunchchat/gather/${day}/${gid}/roomId`).transaction(cur => (cur && rooms[cur]) ? undefined : newKey).catch(err => { toast("대화방 만들기 실패: " + err.message, 4000); return null; });
+  if(!tx) return;
+  const roomId = tx.snapshot.val();
+  if(tx.committed && roomId === newKey){
+    const T = firebase.database.ServerValue.TIMESTAMP;
+    try{ await db.ref("lunchchat/rooms/" + newKey).set({name, createdAt: T, createdBy: myNick.slice(0, 20), lastAt: T, lastText: "", lastNick: "", lastUid: ""}); }
+    catch(err){ toast("대화방 만들기 실패: " + err.message, 4000); return; }
+    toast(`💬 '${name}' 대화방을 만들었어요`);
+  }
+  openChat(); openRoom(roomId);
+}
+function gatherLink(gid){ return `${location.origin}${location.pathname}?g=${KST_DAY()}_${gid}`; }
+async function shareGatherLink(gid, g){
+  const url = gatherLink(gid), title = `🙋 ${g.time} ${g.placeName} 같이 가요`;
+  if(navigator.share && /Android|iPhone|iPad/i.test(navigator.userAgent)){
+    try{ await navigator.share({title, text: title, url}); return; }catch(e){ if(e.name === "AbortError") return; }
+  }
+  try{ await navigator.clipboard.writeText(`${title}\n${url}`); toast("링크를 복사했어요. 카톡이나 메신저에 붙여넣으세요", 3500); }
+  catch(e){ window.prompt("이 링크를 복사해서 보내세요", url); }
+}
+// 링크(?g=날짜_모집)로 들어온 경우: 해당 모집으로 이동해서 강조
+const linkParam = new URLSearchParams(location.search).get("g");
+let pendingGatherLink = linkParam && /^\d{4}-\d{2}-\d{2}_[-\w]+$/.test(linkParam) ? linkParam.split("_") : null;
+if(pendingGatherLink){ try{ history.replaceState(null, "", location.pathname); }catch(e){} }
+function handleGatherLink(){
+  if(!pendingGatherLink) return;
+  const [day, gid] = pendingGatherLink; pendingGatherLink = null;
+  if(day !== KST_DAY()){ toast("지난 모집 링크예요 (모집은 밤 12시에 초기화돼요)", 4000); return; }
+  const g = gathers[gid];
+  if(!g){ toast("이미 끝났거나 취소된 모집이에요", 4000); return; }
+  const want = g.meal === "dinner" ? "dinner" : "lunch";
+  if(meal !== want){ meal = want; applyMeal(); }
+  render();
+  requestAnimationFrame(() => {
+    const el = document.querySelector(`.gitem[data-g="${CSS.escape(gid)}"]`);
+    if(el){ el.classList.add("hl"); el.scrollIntoView({block: "center"}); }
+    if(window.innerWidth <= 760) $("aside").scrollIntoView({behavior: "smooth"});
+  });
+  toast(`🙋 ${g.time} ${clean(g.placeName)} 모집이에요. '나도 갈래요'로 참여하세요`, 5000);
+}
 async function createGather(p, time){
   if(!requireNick() || !initFirebase()) return;
   let user; try{ user = await ensureAuth(); }catch(err){ toast("로그인 실패: " + err.message, 4000); return; }
   const ref = db.ref("lunchchat/gather/" + KST_DAY()).push();
   ref.set({placeId: p.id, placeName: p.name.slice(0, 60), time, meal, host: myNick.slice(0, 20), hostUid: myId, hostAuth: user.uid,
            createdAt: firebase.database.ServerValue.TIMESTAMP, members: {[user.uid]: myNick}})
-    .then(() => { gatherFormOpen = false; render(); $("#list").scrollTop = 0; toast(`🙋 ${time} ${p.name} 모집을 올렸어요`); })
+    .then(() => { gatherFormOpen = false; render(); $("#list").scrollTop = 0; toast(`🙋 ${time} ${p.name} 모집을 올렸어요 · '🔗 링크'로 초대할 수 있어요`, 3500); })
     .catch(err => toast("모집 실패: " + err.message, 4000));
 }
 function markVisit(p){
