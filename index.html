@@ -315,6 +315,22 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 
 <script>
+/* 배포할 때마다 바뀌는 버전 표시. 저장된 옛날 페이지가 열리면 최신 버전으로 자동 새로고침 */
+const BUILD = "20261110185325";
+(async () => {
+  try{
+    const res = await fetch(location.pathname + "?nc=" + Date.now(), {cache: "no-store"});
+    const latest = ((await res.text()).match(/const BUILD = "([^"]+)"/) || [])[1];
+    if(latest && latest !== BUILD && latest !== "__BUILD__"){
+      const key = "lunch.reloaded." + latest;
+      if(!sessionStorage.getItem(key)){
+        sessionStorage.setItem(key, "1");
+        const q = new URLSearchParams(location.search); q.set("v", latest);
+        location.replace(location.pathname + "?" + q.toString() + location.hash);
+      }
+    }
+  }catch(e){}
+})();
 /* ═════════════ 설정 ═════════════ */
 const KAKAO_JS_KEY = "093c7ae93569953c7484af1227ef2cee";       // 카카오 JavaScript 키
 const COMPANY = {address: "서울 강남구 신사동 663-7", lat: 37.5265487, lng: 127.0382152};
@@ -1175,7 +1191,7 @@ async function openGatherRoom(gid, g){
   }
   openChat(); openRoom(roomId);
 }
-function gatherLink(gid){ return `${location.origin}${location.pathname}?g=${KST_DAY()}_${gid}`; }
+function gatherLink(gid){ return `${location.origin}${location.pathname}?g=${KST_DAY()}_${gid}&v=${BUILD}`; }
 async function shareGatherLink(gid, g){
   const url = gatherLink(gid), title = `🙋 ${g.time} ${g.placeName} 같이 가요`;
   if(navigator.share && /Android|iPhone|iPad/i.test(navigator.userAgent)){
