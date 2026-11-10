@@ -171,6 +171,18 @@
   body.dinner .popt.win{background:#12301b;color:#8ce99a}
   body.dinner .gitem .join.in{background:#1d2027}
 
+  /* ───── 입장: 이름 정하기 ───── */
+  .welcome{position:fixed;inset:0;background:#1f1b16cc;backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:80;padding:20px}
+  .welcome.on{display:flex}
+  .welcome .box{background:#fff;border-radius:18px;padding:26px 24px;width:min(360px,100%);text-align:center;box-shadow:0 20px 50px #0005}
+  .welcome h2{margin:0 0 6px;font-size:21px}
+  .welcome p{margin:0 0 16px;color:var(--muted);font-size:13px;line-height:1.6}
+  .welcome input{width:100%;font:inherit;font-size:16px;border:1.5px solid var(--line);border-radius:12px;padding:11px 14px;text-align:center}
+  .welcome input:focus{outline:none;border-color:var(--accent)}
+  .welcome .btn{width:100%;margin-top:10px;padding:11px;font-size:15px}
+  body.dinner .welcome .box{background:#1d2027;color:var(--ink)}
+  body.dinner .welcome input{background:#14161b;color:var(--ink);border-color:var(--line)}
+
   /* ───── 저녁 모드 (다크) ───── */
   .meal-toggle{cursor:pointer;user-select:none}
   .meal-toggle .hint{font-size:11px;font-weight:600;color:var(--muted);margin-left:6px;vertical-align:3px;border:1px solid var(--line);border-radius:999px;padding:2px 8px}
@@ -273,6 +285,14 @@
     <button type="submit">보내기</button>
   </form>
 </div>
+<div class="welcome" id="welcome" role="dialog" aria-label="이름 정하기">
+  <div class="box">
+    <h2 id="welTitle">🍚 반가워요!</h2>
+    <p id="welDesc">같이 갈 사람 모집, 투표, 채팅에서 쓸 이름을 정해주세요.<br>회사 사람들이 알아볼 수 있게 써주세요.</p>
+    <input id="welNick" maxlength="20" placeholder="예: 디자인팀 준" autocomplete="off">
+    <button class="btn accent" id="welOk">시작하기</button>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 <div class="undo" id="undo"><span id="undoText"></span><button id="undoBtn">되돌리기</button></div>
 
@@ -324,7 +344,34 @@ function rateStats(id){
 function daysAgo(ts){ if(!ts) return null; const now = Date.now(); return Math.floor((now - ts) / 86400000); }
 function requireNick(){
   if(myNick) return true;
-  openChat(); toast("먼저 채팅에서 쓸 이름을 정해주세요"); return false;
+  showWelcome(); return false;
+}
+/* 이름 입력 처리 (입장 화면·채팅 이름 칸 공통). 숫자만 6자리 이상이면 관리자 비밀번호로 시도 */
+function submitNick(raw, done){
+  raw = (raw || "").trim(); if(!raw) return;
+  if(/^\d{6,}$/.test(raw)){
+    if(!initFirebase()){ toast("서버에 연결할 수 없어요"); return; }
+    firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL, raw)
+      .then(() => { isAdmin = true; if(!myNick){ myNick = "관리자"; store.set(NICK_KEY, myNick); } toast("관리자 모드로 들어왔어요"); done && done(); })
+      .catch(err => toast(err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" ? "관리자 비밀번호가 맞지 않아요" : "관리자 로그인 실패: " + (err.code || err.message), 4000));
+    return;
+  }
+  const v = clean(raw).slice(0, 20);
+  myNick = v; store.set(NICK_KEY, v); done && done();
+}
+function showWelcome(change){
+  $("#welTitle").textContent = change ? "✏️ 이름 바꾸기" : "🍚 반가워요!";
+  $("#welNick").value = change ? myNick : "";
+  $("#welcome").classList.add("on");
+  setTimeout(() => $("#welNick").focus(), 50);
+}
+function welcomeOk(){
+  submitNick($("#welNick").value, () => {
+    $("#welcome").classList.remove("on");
+    toast(`${myNick}님, 오늘 ${MEALS[meal].name} 뭐 드실래요? 😋`, 2500);
+    render();
+    if(chatOpen) showRooms();
+  });
 }
 const PICK_TABS_BASE = [["menu", "🍽 메뉴/가격", "#menuInfo"], ["photo", "📷 사진", "#photoview"], ["review", "💬 후기", "#review"]];
 let PICK_TABS = PICK_TABS_BASE;
@@ -823,16 +870,7 @@ function askNick(){
   $("#chatMsgs").innerHTML = `<div class="chat-empty">채팅에서 쓸 이름을 정해주세요<br><br>
     <input id="nickIn" maxlength="20" placeholder="예: 디자인팀 준" value="${esc(myNick)}" style="font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:10px;width:200px"><br><br>
     <button class="btn accent" id="nickOk">확인</button></div>`;
-  const ok = () => {
-    const raw = $("#nickIn").value.trim(); if(!raw) return;
-    if(/^\d{6,}$/.test(raw)){   // 숫자만 6자리 이상 → 관리자 비밀번호로 시도
-      firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL, raw)
-        .then(() => { isAdmin = true; if(!myNick){ myNick = "관리자"; store.set(NICK_KEY, myNick); } toast("관리자 모드로 들어왔어요"); showRooms(); })
-        .catch(err => toast(err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" ? "관리자 비밀번호가 맞지 않아요" : "관리자 로그인 실패: " + (err.code || err.message), 4000));
-      return;
-    }
-    const v = clean(raw); myNick = v; store.set(NICK_KEY, v); showRooms();
-  };
+  const ok = () => submitNick($("#nickIn").value, showRooms);
   $("#nickOk").onclick = ok;
   $("#nickIn").onkeydown = e => { if(e.key === "Enter") ok(); };
   setTimeout(() => $("#nickIn")?.focus(), 50);
@@ -1203,6 +1241,9 @@ setInterval(() => {
 render();
 initMap();
 watchClosedEarly();
+$("#welOk").addEventListener("click", welcomeOk);
+$("#welNick").addEventListener("keydown", e => { if(e.key === "Enter") welcomeOk(); });
+if(!myNick) showWelcome();   // 처음 들어오면 이름부터
 </script>
 </body>
 </html>
