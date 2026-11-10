@@ -1076,7 +1076,7 @@ $("#mealToggle").addEventListener("click", () => {
   toast(`${MEALS[meal].icon} ${MEALS[meal].name} 모드 · 식대 ${MEALS[meal].budget.toLocaleString()}원`);
 });
 let renderQueued = false;
-function renderSoon(){ if(renderQueued) return; renderQueued = true; requestAnimationFrame(() => { renderQueued = false; render(); }); }
+function renderSoon(){ if(renderQueued) return; renderQueued = true; setTimeout(() => { renderQueued = false; render(); }, 30); }
 let gatherDay = null, gatherRef = null;
 function watchGather(){
   const day = KST_DAY();
@@ -1143,11 +1143,11 @@ function handleGatherLink(){
   const want = g.meal === "dinner" ? "dinner" : "lunch";
   if(meal !== want){ meal = want; applyMeal(); }
   render();
-  requestAnimationFrame(() => {
+  setTimeout(() => {
     const el = document.querySelector(`.gitem[data-g="${CSS.escape(gid)}"]`);
     if(el){ el.classList.add("hl"); el.scrollIntoView({block: "center"}); }
     if(window.innerWidth <= 760) $("aside").scrollIntoView({behavior: "smooth"});
-  });
+  }, 50);
   toast(`🙋 ${g.time} ${clean(g.placeName)} 모집이에요. '나도 갈래요'로 참여하세요`, 5000);
 }
 async function createGather(p, time){
