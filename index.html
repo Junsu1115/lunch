@@ -504,7 +504,7 @@ function gatherSection(){
   return `<div class="gather"><div class="gather-h">🙋 오늘 같이 가요 <small>밤 12시에 초기화</small></div>` + list.map(([id, g]) => {
     const mem = g.members || {}, names = Object.values(mem), inIt = !!mem[authUid()];
     const isHost = !!g.hostAuth && g.hostAuth === authUid();
-    return `<div class="gitem" data-g="${esc(id)}">
+    return `<div class="gitem ${hlGather === id && Date.now() < hlUntil ? "hl" : ""}" data-g="${esc(id)}">
       <div class="gt"><span class="gtime">${esc(g.time)}</span>${g.meal === "dinner" ? "🌙" : "☀️"} ${esc(clean(g.placeName))}</div>
       <div class="gm">${names.length}명 · ${names.map(n => esc(clean(n))).join(", ")}</div>
       <div class="gb"><button class="link join ${inIt ? "in" : ""}" data-gact="join">${inIt ? "빠지기" : "🙋 나도 갈래요"}</button>
@@ -1132,6 +1132,7 @@ async function shareGatherLink(gid, g){
 }
 // 링크(?g=날짜_모집)로 들어온 경우: 해당 모집으로 이동해서 강조
 const linkParam = new URLSearchParams(location.search).get("g");
+let hlGather = null, hlUntil = 0;   // 링크로 들어온 모집을 잠깐 강조
 let pendingGatherLink = linkParam && /^\d{4}-\d{2}-\d{2}_[-\w]+$/.test(linkParam) ? linkParam.split("_") : null;
 if(pendingGatherLink){ try{ history.replaceState(null, "", location.pathname); }catch(e){} }
 function handleGatherLink(){
@@ -1142,10 +1143,12 @@ function handleGatherLink(){
   if(!g){ toast("이미 끝났거나 취소된 모집이에요", 4000); return; }
   const want = g.meal === "dinner" ? "dinner" : "lunch";
   if(meal !== want){ meal = want; applyMeal(); }
+  hlGather = gid; hlUntil = Date.now() + 8000;
+  setTimeout(renderSoon, 8100);
   render();
   setTimeout(() => {
     const el = document.querySelector(`.gitem[data-g="${CSS.escape(gid)}"]`);
-    if(el){ el.classList.add("hl"); el.scrollIntoView({block: "center"}); }
+    if(el) el.scrollIntoView({block: "center"});
     if(window.innerWidth <= 760) $("aside").scrollIntoView({behavior: "smooth"});
   }, 50);
   toast(`🙋 ${g.time} ${clean(g.placeName)} 모집이에요. '나도 갈래요'로 참여하세요`, 5000);
