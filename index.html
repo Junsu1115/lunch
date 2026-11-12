@@ -338,7 +338,7 @@
 
 <script>
 /* 배포할 때마다 바뀌는 버전 표시. 저장된 옛날 페이지가 열리면 최신 버전으로 자동 새로고침 */
-const BUILD = "20261112102124";
+const BUILD = "20261112103939";
 const ORIG_SEARCH = location.search;   // 초대 링크(?g=...)를 새로고침 후에도 유지하려고 처음 주소를 기억
 (async () => {
   try{
@@ -579,7 +579,7 @@ function card(p){
     ${cardTags(p)}
     <div class="row">${meal === "dinner" ? `<button class="link ce ${closedEarly[p.id] ? "on" : ""}" data-act="ce">${closedEarly[p.id] ? "↩ 7시 전 마감 취소" : "🌙 7시 전에 닫아요"}</button>` : ""}
       <span class="spacer"></span>
-      ${isAdmin ? `<button class="link danger" data-act="remove">${removedPlaces[p.id] ? "↩ 가게 복구" : "🗑 가게 삭제"}</button>` : ""}
+      ${isAdmin && removedPlaces[p.id] ? `<button class="link danger" data-act="remove">↩ 가게 복구</button>` : ""}
       <button class="link" data-act="hide">${h ? "다시 보기" : "숨기기"}</button></div>
   </div>`;
 }
@@ -611,6 +611,7 @@ function pickActions(p){
       <button class="link ${mine[key] === false ? "on" : ""}" data-rate="no">식대 넘었어요 ${s.no ? "(" + s.no + ")" : ""}</button>
       <button class="link ${d === 0 ? "on" : ""}" data-pick="visit">✅ ${d === 0 ? "오늘 다녀옴" : "오늘 여기 갔어요"}</button>
       <button class="link" data-pick="poll">📊 투표 후보에 추가</button>
+      ${isAdmin ? `<button class="link danger" data-pick="remove">${removedPlaces[p.id] ? "↩ 가게 복구" : "🗑 가게 삭제"}</button>` : ""}
     </div>
     ${menuBox(p)}
     ${gatherFormOpen ? `<div class="gform">출발 시간 <select id="gTime">${slots.map(x => `<option ${x === def ? "selected" : ""}>${x}</option>`).join("")}</select>
@@ -803,6 +804,7 @@ $("#list").addEventListener("click", e => {
     else if(pk === "gatherGo" && p) createGather(p, $("#gTime").value);
     else if(pk === "visit" && p) markVisit(p);
     else if(pk === "madd" && p) addMenu(p);
+    else if(pk === "remove" && p) removeFromPanel(p, e.target.closest("[data-pick]"));
     else if(pk === "poll" && p){
       if(pollDraft.includes(p.id)) toast("이미 투표 후보에 있어요");
       else if(pollDraft.length >= 4) toast("후보는 4곳까지예요");
@@ -1323,6 +1325,28 @@ async function createGather(p, time){
            createdAt: firebase.database.ServerValue.TIMESTAMP, members: {[user.uid]: myNick}})
     .then(() => { gatherFormOpen = false; render(); $("#list").scrollTop = 0; toast(`🙋 ${time} ${p.name} 모집을 올렸어요 · '🔗 링크'로 초대할 수 있어요`, 3500); })
     .catch(err => toast("모집 실패: " + err.message, 4000));
+}
+function removeFromPanel(p, btn){
+  if(!isAdmin) return;
+  if(removedPlaces[p.id]){   // 복구
+    db.ref(`lunchchat/removed/${meal}/${p.id}`).remove().then(() => toast(`'${p.name}' 복구했어요`)).catch(err => toast("실패: " + err.message, 4000));
+    return;
+  }
+  if(btn.dataset.armed !== "1"){
+    btn.dataset.armed = "1"; btn.textContent = "한 번 더 누르면 삭제";
+    setTimeout(() => { if(btn.isConnected && btn.dataset.armed === "1"){ btn.dataset.armed = ""; btn.textContent = "🗑 가게 삭제"; } }, 4000);
+    return;
+  }
+  // 지우기 전에 목록에서 바로 아래 가게를 찾아둠 (맨 끝이면 바로 위)
+  const arr = visible(), i = arr.findIndex(x => x.id === p.id);
+  const next = arr[i + 1] || arr[i - 1];
+  db.ref(`lunchchat/removed/${meal}/${p.id}`).set(true)
+    .then(() => {
+      toast(`'${p.name}' ${MEALS[meal].name} 목록에서 삭제했어요`, 2500);
+      removedPlaces = Object.assign({}, removedPlaces, {[p.id]: true});
+      if(next){ pickedId = null; openPlace(next.id, false); } else closePlace();
+    })
+    .catch(err => toast("삭제 실패: " + err.message, 4000));
 }
 function addMenu(p){
   if(!isAdmin){ toast("메뉴는 관리자만 넣을 수 있어요"); return; }
