@@ -326,6 +326,7 @@
     <p id="welDesc">같이 갈 사람 모집, 투표, 채팅에서 쓸 이름을 정해주세요.<br>회사 사람들이 알아볼 수 있게 써주세요.</p>
     <input id="welNick" maxlength="20" placeholder="예: 디자인팀 준" autocomplete="off">
     <button class="btn accent" id="welOk">시작하기</button>
+    <button class="btn" id="welLogout" style="display:none;margin-top:8px">🔒 관리자 로그아웃</button>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -338,7 +339,7 @@
 
 <script>
 /* 배포할 때마다 바뀌는 버전 표시. 저장된 옛날 페이지가 열리면 최신 버전으로 자동 새로고침 */
-const BUILD = "20261112111125";
+const BUILD = "20261112112017";
 const ORIG_SEARCH = location.search;   // 초대 링크(?g=...)를 새로고침 후에도 유지하려고 처음 주소를 기억
 (async () => {
   try{
@@ -427,6 +428,7 @@ function submitNick(raw, done){
 function showWelcome(change){
   $("#welTitle").textContent = change ? "✏️ 이름 바꾸기" : "🍚 반가워요!";
   $("#welNick").value = change ? myNick : "";
+  $("#welLogout").style.display = isAdmin ? "" : "none";
   $("#welcome").classList.add("on");
   setTimeout(() => $("#welNick").focus(), 50);
 }
@@ -1415,6 +1417,15 @@ render();
 initMap();
 watchClosedEarly();
 $("#welOk").addEventListener("click", welcomeOk);
+$("#welLogout").addEventListener("click", () => {
+  firebase.auth().signOut().then(() => {
+    isAdmin = false;
+    $("#welcome").classList.remove("on");
+    toast("관리자 모드를 나왔어요");
+    render();
+    if(chatOpen) showRooms();
+  }).catch(err => toast("로그아웃 실패: " + (err.code || err.message), 4000));
+});
 $("#meBadge").addEventListener("click", () => showWelcome(!!myNick));
 $("#welNick").addEventListener("keydown", e => { if(e.key === "Enter") welcomeOk(); });
 if(!myNick) showWelcome();   // 처음 들어오면 이름부터
