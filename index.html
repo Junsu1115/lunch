@@ -338,7 +338,7 @@
 
 <script>
 /* 배포할 때마다 바뀌는 버전 표시. 저장된 옛날 페이지가 열리면 최신 버전으로 자동 새로고침 */
-const BUILD = "20261112110600";
+const BUILD = "20261112111125";
 const ORIG_SEARCH = location.search;   // 초대 링크(?g=...)를 새로고침 후에도 유지하려고 처음 주소를 기억
 (async () => {
   try{
@@ -443,7 +443,7 @@ let PICK_TABS = PICK_TABS_BASE;
 const CACHE_KEY = "lunch.places.v1", HIDDEN_KEY = "lunch.hidden", NICK_KEY = "lunch.nick";
 const $ = s => document.querySelector(s);
 
-let places = [], hidden = new Set(), updatedAt = "";
+let basePlaces = [], extras = {}, places = [], hidden = new Set(), updatedAt = "";
 let map = null, info = null, markers = {}, selected = null, group = "전체";
 let pickedId = null, pickTab = "menu", pickByDice = false;
 
@@ -515,16 +515,28 @@ async function collect(){
   }
   return Object.values(found).sort((a, b) => a.distance - b.distance);
 }
+// 반경 밖이지만 관리자가 직접 추가한 가게 (lunchchat/extras)
+function mergePlaces(){
+  const seen = new Set(basePlaces.map(p => p.id));
+  const add = Object.values(extras).filter(e => e && e.id && !seen.has(e.id)).map(e => {
+    const lat = +e.lat, lng = +e.lng;
+    return {id: String(e.id), name: String(e.name || ""), category: String(e.category_full || "").split(">").pop().trim(), category_full: String(e.category_full || ""),
+      address: String(e.address || ""), road_address: String(e.road_address || ""), lat, lng,
+      distance: Math.round(haversine(COMPANY.lat, COMPANY.lng, lat, lng)), kakao_url: `https://place.map.kakao.com/${encodeURIComponent(e.id)}`,
+      group: foodGroup(String(e.category_full || "")), extra: true};
+  });
+  places = basePlaces.concat(add).sort((a, b) => a.distance - b.distance);
+}
 async function loadPlaces(force){
   const cache = store.get(CACHE_KEY, null);
   if(!force && cache && Date.now() - cache.t < 24 * 3600 * 1000 && cache.places?.length){
-    places = cache.places; updatedAt = cache.label; render(); return;
+    basePlaces = cache.places; mergePlaces(); updatedAt = cache.label; render(); return;
   }
   const b = $("#refresh"); b.disabled = true; b.textContent = "불러오는 중…";
   try{
-    places = await collect();
+    basePlaces = await collect(); mergePlaces();
     const d = new Date(); updatedAt = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    store.set(CACHE_KEY, {t: Date.now(), label: updatedAt, places});
+    store.set(CACHE_KEY, {t: Date.now(), label: updatedAt, places: basePlaces});
     toast(`${places.length}곳을 불러왔어요`);
   }catch(err){ toast("식당을 불러오지 못했어요: " + err.message, 5000); }
   b.disabled = false; b.textContent = "식당 새로 불러오기";
@@ -1255,6 +1267,7 @@ function watchClosedEarly(){
   db.ref("lunchchat/ratings").on("value", s => { ratings = s.val() || {}; renderSoon(); });
   db.ref("lunchchat/visits").on("value", s => { visitsAll = s.val() || {}; syncMealViews(); renderSoon(); });
   db.ref("lunchchat/removed").on("value", s => { removedAll = s.val() || {}; syncMealViews(); renderSoon(); });
+  db.ref("lunchchat/extras").on("value", s => { extras = s.val() || {}; mergePlaces(); renderSoon(); });
   db.ref("lunchchat/menus").on("value", s => { menus = s.val() || {}; renderSoon(); });
   watchGather();
   setInterval(watchGather, 60000);   // 밤 12시가 지나면 새 날짜의 모집으로 자동 전환 (= 초기화)
