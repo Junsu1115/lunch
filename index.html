@@ -338,7 +338,7 @@
 
 <script>
 /* 배포할 때마다 바뀌는 버전 표시. 저장된 옛날 페이지가 열리면 최신 버전으로 자동 새로고침 */
-const BUILD = "20261112101333";
+const BUILD = "20261112102124";
 const ORIG_SEARCH = location.search;   // 초대 링크(?g=...)를 새로고침 후에도 유지하려고 처음 주소를 기억
 (async () => {
   try{
@@ -381,20 +381,29 @@ let meal = mealByClock();
 let closedEarly = {};   // 저녁 7시 전에 닫는다고 표시된 가게 (모두가 같이 봄)
 let gathers = {};       // 오늘의 '같이 가요' 모집 (자정에 날짜가 바뀌면 새로 시작)
 let ratings = {};       // 우리 회사 평가 {가게: {사람: {v, okLunch, okDinner, nick, ts}}}
-let visits = {};        // 최근 간 곳 {가게: {ts, nick}}
+let visits = {};        // 지금 모드(점심/저녁)의 다녀온 곳 {가게: {ts, nick}}
+let visitsAll = {};     // {lunch: {...}, dinner: {...}}
 let pollDraft = [];     // 투표 후보 (가게 id)
 let gatherFormOpen = false;
 let showCE = false;
-let removedPlaces = {};  // 관리자가 목록에서 뺀 가게 (모두에게 적용)
+let removedPlaces = {};  // 지금 모드에서 관리자가 뺀 가게 (점심/저녁 따로)
+let removedAll = {};     // {lunch: {...}, dinner: {...}}
+function syncMealViews(){
+  removedPlaces = removedAll[meal] || {};
+  visits = visitsAll[meal] || {};
+  hidden = hiddenByMeal[meal];
+}
 let menus = {};          // 공유 메뉴판 {가게: {메뉴id: {name, price}}}  ※ 관리자만 입력
 const menuList = id => Object.entries(menus[id] || {}).map(([k, m]) => ({k, ...m})).sort((a, b) => a.price - b.price);
 const minPrice = id => { const l = menuList(id); return l.length ? l[0].price : null; };     // 저녁: '7시 전 마감' 표시한 가게만 모아 보기
 const KST_DAY = () => new Date((typeof nowMs === "function" ? nowMs() : Date.now()) + 9 * 3600 * 1000).toISOString().slice(0, 10);
 const walkMin = d => Math.max(1, Math.round(d * 1.3 / 67));   // 직선거리 × 1.3(골목) ÷ 분당 67m
+const vKey = () => meal === "dinner" ? "vDinner" : "vLunch";
+const myVote = x => x[vKey()] !== undefined ? x[vKey()] : (meal === "lunch" ? x.v : undefined);
 function rateStats(id){
   const r = ratings[id] || {}, key = meal === "dinner" ? "okDinner" : "okLunch";
   let up = 0, down = 0, ok = 0, no = 0;
-  for(const x of Object.values(r)){ if(x.v === 1) up++; if(x.v === -1) down++; if(x[key] === true) ok++; if(x[key] === false) no++; }
+  for(const x of Object.values(r)){ const v = myVote(x); if(v === 1) up++; if(v === -1) down++; if(x[key] === true) ok++; if(x[key] === false) no++; }
   return {up, down, ok, no, okMajority: ok > 0 && ok > no};
 }
 function daysAgo(ts){ if(!ts) return null; const now = Date.now(); return Math.floor((now - ts) / 86400000); }
@@ -442,7 +451,9 @@ const store = {
   get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
-hidden = new Set(store.get(HIDDEN_KEY, []));
+const hiddenByMeal = {lunch: new Set(store.get(HIDDEN_KEY, [])), dinner: new Set(store.get(HIDDEN_KEY + ".dinner", []))};
+hidden = hiddenByMeal.lunch;
+const saveHidden = () => store.set(meal === "dinner" ? HIDDEN_KEY + ".dinner" : HIDDEN_KEY, [...hidden]);
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const kakaoUrl = p => `https://place.map.kakao.com/${p.id}`;   // https로 고정 (http는 사이트 안에서 막힘)
@@ -543,7 +554,7 @@ function visible(){
 }
 function cardTags(p){
   const s = rateStats(p.id), v = visits[p.id], d = v ? daysAgo(v.ts) : null;
-  const g = Object.values(gathers).filter(x => x.placeId === p.id);
+  const g = Object.values(gathers).filter(x => x.placeId === p.id && (x.meal || "lunch") === meal);
   const tags = [];
   if(g.length) tags.push(`<span class="tagx gath">🙋 오늘 ${esc(g[0].time)} 모집 중</span>`);
   if(s.up || s.down) tags.push(`<span class="tagx">👍 ${s.up} · 👎 ${s.down}</span>`);
@@ -594,8 +605,8 @@ function pickActions(p){
   const def = slots.find(x => { const [h, m] = x.split(":").map(Number); return h * 60 + m >= cur + 10; }) || (meal === "dinner" ? "18:30" : "12:00");
   return `<div class="actions">
       <button class="link" data-pick="gather" style="background:#4c6ef5;color:#fff;border-color:#4c6ef5;font-weight:700">🙋 같이 갈 사람 모집</button>
-      <button class="link up ${mine.v === 1 ? "on" : ""}" data-rate="up">👍 ${s.up}</button>
-      <button class="link down ${mine.v === -1 ? "on" : ""}" data-rate="down">👎 ${s.down}</button>
+      <button class="link up ${myVote(mine) === 1 ? "on" : ""}" data-rate="up">👍 ${s.up}</button>
+      <button class="link down ${myVote(mine) === -1 ? "on" : ""}" data-rate="down">👎 ${s.down}</button>
       <button class="link ok ${mine[key] === true ? "on" : ""}" data-rate="ok">💰 ${MEALS[meal].budget.toLocaleString()}원 안에 됐어요 ${s.ok ? "(" + s.ok + ")" : ""}</button>
       <button class="link ${mine[key] === false ? "on" : ""}" data-rate="no">식대 넘었어요 ${s.no ? "(" + s.no + ")" : ""}</button>
       <button class="link ${d === 0 ? "on" : ""}" data-pick="visit">✅ ${d === 0 ? "오늘 다녀옴" : "오늘 여기 갔어요"}</button>
@@ -625,7 +636,7 @@ function pickPanel(){
   </div>`;
 }
 function gatherSection(){
-  const list = Object.entries(gathers).sort((a, b) => a[1].time.localeCompare(b[1].time, undefined, {numeric: true}));
+  const list = Object.entries(gathers).filter(([, g]) => (g.meal || "lunch") === meal).sort((a, b) => a[1].time.localeCompare(b[1].time, undefined, {numeric: true}));
   if(!list.length) return "";
   return `<div class="gather"><div class="gather-h">🙋 오늘 같이 가요 <small>밤 12시에 초기화</small></div>` + list.map(([id, g]) => {
     const mem = g.members || {}, names = Object.values(mem), inIt = !!mem[authUid()];
@@ -841,7 +852,7 @@ $("#list").addEventListener("click", e => {
     if(!isAdmin) return;
     const btn = e.target, name = (places.find(x => x.id === id) || {}).name || "";
     if(removedPlaces[id]){
-      db.ref("lunchchat/removed/" + id).remove().then(() => toast(`'${name}' 복구했어요`)).catch(err => toast("실패: " + err.message, 4000));
+      db.ref(`lunchchat/removed/${meal}/${id}`).remove().then(() => toast(`'${name}' 복구했어요`)).catch(err => toast("실패: " + err.message, 4000));
       return;
     }
     if(btn.dataset.armed !== "1"){
@@ -849,14 +860,14 @@ $("#list").addEventListener("click", e => {
       setTimeout(() => { if(btn.isConnected){ btn.dataset.armed = ""; btn.textContent = "🗑 가게 삭제"; } }, 4000);
       return;
     }
-    db.ref("lunchchat/removed/" + id).set(true)
-      .then(() => toast(`'${name}' 목록에서 삭제했어요 · 숨긴 곳을 켜면 복구할 수 있어요`, 4000))
+    db.ref(`lunchchat/removed/${meal}/${id}`).set(true)
+      .then(() => toast(`'${name}' ${MEALS[meal].name} 목록에서 삭제했어요 · 숨긴 곳을 켜면 복구할 수 있어요`, 4000))
       .catch(err => toast("삭제 실패: " + err.message, 4000));
     return;
   }
   if(e.target.dataset.act === "hide"){
     hidden.has(id) ? hidden.delete(id) : hidden.add(id);
-    store.set(HIDDEN_KEY, [...hidden]); render(); return;
+    saveHidden(); render(); return;
   }
   openPlace(id, false);
 });
@@ -1195,6 +1206,7 @@ if(FIREBASE_CONFIG) initFirebase();
 /* ───── 점심 / 저녁 전환 ───── */
 function applyMeal(){
   const m = MEALS[meal];
+  syncMealViews();
   document.body.classList.toggle("dinner", meal === "dinner");
   $("#mealName").textContent = m.name;
   $("#mealHint").textContent = meal === "dinner" ? "☀️ 점심으로" : "🌙 저녁으로";
@@ -1239,8 +1251,8 @@ function watchClosedEarly(){
   if(!initFirebase()) return;
   db.ref("lunchchat/closedEarly").on("value", s => { closedEarly = s.val() || {}; renderSoon(); });
   db.ref("lunchchat/ratings").on("value", s => { ratings = s.val() || {}; renderSoon(); });
-  db.ref("lunchchat/visits").on("value", s => { visits = s.val() || {}; renderSoon(); });
-  db.ref("lunchchat/removed").on("value", s => { removedPlaces = s.val() || {}; renderSoon(); });
+  db.ref("lunchchat/visits").on("value", s => { visitsAll = s.val() || {}; syncMealViews(); renderSoon(); });
+  db.ref("lunchchat/removed").on("value", s => { removedAll = s.val() || {}; syncMealViews(); renderSoon(); });
   db.ref("lunchchat/menus").on("value", s => { menus = s.val() || {}; renderSoon(); });
   watchGather();
   setInterval(watchGather, 60000);   // 밤 12시가 지나면 새 날짜의 모집으로 자동 전환 (= 초기화)
@@ -1326,7 +1338,7 @@ function markVisit(p){
   if(!requireNick() || !initFirebase()) return;
   const d = visits[p.id] ? daysAgo(visits[p.id].ts) : null;
   if(d === 0){ toast("오늘 이미 다녀온 걸로 표시돼 있어요"); return; }
-  ensureAuth().then(() => db.ref("lunchchat/visits/" + p.id).set({ts: firebase.database.ServerValue.TIMESTAMP, nick: myNick.slice(0, 20)}))
+  ensureAuth().then(() => db.ref(`lunchchat/visits/${meal}/${p.id}`).set({ts: firebase.database.ServerValue.TIMESTAMP, nick: myNick.slice(0, 20)}))
     .then(() => toast("다녀온 곳으로 기록했어요 · 3일 동안 뽑기에서 빠져요"))
     .catch(err => toast("저장 실패: " + err.message, 4000));
 }
@@ -1335,14 +1347,16 @@ async function ratePlace(p, kind){
   let user; try{ user = await ensureAuth(); }catch(err){ toast("로그인 실패: " + err.message, 4000); return; }
   const mine = Object.assign({}, (ratings[p.id] || {})[user.uid] || {});
   const key = meal === "dinner" ? "okDinner" : "okLunch";
-  if(kind === "up") mine.v = mine.v === 1 ? 0 : 1;
-  if(kind === "down") mine.v = mine.v === -1 ? 0 : -1;
+  const vk = vKey(), cur = myVote(mine);
+  if(meal === "lunch" && mine.v !== undefined){ if(mine.vLunch === undefined) mine.vLunch = mine.v; delete mine.v; }   // 예전 형식 → 점심으로 옮김
+  if(kind === "up") mine[vk] = cur === 1 ? 0 : 1;
+  if(kind === "down") mine[vk] = cur === -1 ? 0 : -1;
   if(kind === "ok") mine[key] = mine[key] === true ? null : true;
   if(kind === "no") mine[key] = mine[key] === false ? null : false;
   mine.nick = myNick; mine.ts = firebase.database.ServerValue.TIMESTAMP;
-  if(mine.v === 0) delete mine.v;
+  for(const k of ["vLunch", "vDinner"]) if(mine[k] === 0) delete mine[k];
   for(const k of ["okLunch", "okDinner"]) if(mine[k] === null) delete mine[k];
-  db.ref(`lunchchat/ratings/${p.id}/${user.uid}`).set({v: mine.v ?? 0, ...mine}).catch(err => toast("저장 실패: " + err.message, 4000));
+  db.ref(`lunchchat/ratings/${p.id}/${user.uid}`).set(mine).catch(err => toast("저장 실패: " + err.message, 4000));
 }
 applyMeal();
 // 페이지를 켜둔 채로 오후 3시가 되면 저녁으로, 자정이 지나면 점심으로 자동 전환
