@@ -338,7 +338,7 @@
 
 <script>
 /* 배포할 때마다 바뀌는 버전 표시. 저장된 옛날 페이지가 열리면 최신 버전으로 자동 새로고침 */
-const BUILD = "20261112103939";
+const BUILD = "20261112110600";
 const ORIG_SEARCH = location.search;   // 초대 링크(?g=...)를 새로고침 후에도 유지하려고 처음 주소를 기억
 (async () => {
   try{
@@ -532,7 +532,7 @@ async function loadPlaces(force){
 }
 
 /* ───── 목록 ───── */
-function visible(){
+function visible(allGroups){
   const q = $("#q").value.trim(), withHidden = $("#showHidden").checked;
   const arr = places.filter(p => {
     if(hidden.has(p.id) && !withHidden) return false;
@@ -544,7 +544,7 @@ function visible(){
       // 메뉴판에 가격이 있으면 가격으로, 없으면 회사 사람들의 '식대 안에 됐어요' 표시로 판단
       if(mp !== null ? mp > MEALS[meal].budget : !rateStats(p.id).okMajority) return false;
     }
-    if(group !== "전체" && p.group !== group) return false;
+    if(!allGroups && group !== "전체" && p.group !== group) return false;
     if(q && !(p.name + " " + p.category_full).includes(q)) return false;
     return true;
   });
@@ -653,9 +653,9 @@ function gatherSection(){
   }).join("") + `</div>`;
 }
 function renderTabs(){
-  const base = places.filter(p => !hidden.has(p.id));
+  const base = visible(true);   // 지금 모드(점심/저녁)에서 실제로 보이는 가게만 셈
   const names = ["전체", "한식", "분식", "양식", "중식", "일식"];
-  if(base.some(p => p.group === "기타")) names.push("기타");
+  if(places.some(p => p.group === "기타")) names.push("기타");
   $("#tabs").innerHTML = names.map(g => {
     const n = g === "전체" ? base.length : base.filter(p => p.group === g).length;
     const dot = GROUPS[g] ? `<span class="dot" style="background:${GROUPS[g]}"></span>` : "";
